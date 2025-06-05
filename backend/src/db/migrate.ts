@@ -2,6 +2,9 @@ import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import 'dotenv/config';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const pool = new Pool();
 

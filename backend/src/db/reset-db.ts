@@ -1,6 +1,9 @@
 import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // First connect to postgres database to create our database if it doesn't exist
 const initPool = new Pool({

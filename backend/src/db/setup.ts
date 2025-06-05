@@ -2,6 +2,9 @@ import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 import { runMigrations } from './migrations';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Create a single pool instance that will be shared across the application
 export const pool = new Pool({

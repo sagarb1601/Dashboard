@@ -56,12 +56,14 @@ export const contractorSchema = yup.object().shape({
   email: yup
     .string()
     .email('Please enter a valid email')
-    .optional(),
+    .optional()
+    .nullable(),
   
   address: yup
     .string()
     .optional()
-    .max(500, 'Address must not exceed 500 characters'),
+    .max(500, 'Address must not exceed 500 characters')
+    .nullable(),
 });
 
 export const mappingSchema = yup.object().shape({

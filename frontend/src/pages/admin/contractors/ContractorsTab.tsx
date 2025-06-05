@@ -53,11 +53,16 @@ const ContractorsTab: React.FC = () => {
 
   const onFinish = async (values: any) => {
     try {
+
+      console.log("Yoo", editingContractor);
+
       // Validate the data against our schema
       await contractorSchema.validate(values, { abortEarly: false });
       
+      console.log("Hii");
       setSubmitting(true);
       if (editingContractor) {
+        console.log("Editing contractor:", editingContractor);
         await contractors.update(editingContractor.contractor_id, values);
         message.success('Contractor updated successfully');
       } else {
@@ -70,6 +75,7 @@ const ContractorsTab: React.FC = () => {
       fetchContractors(); // Refresh the table
     } catch (error: any) {
       if (error.name === 'ValidationError') {
+        console.error(error.errors[0]);
         message.error(error.errors[0]);
       } else {
         message.error(editingContractor ? 'Failed to update contractor' : 'Failed to add contractor');
@@ -147,6 +153,9 @@ const ContractorsTab: React.FC = () => {
           type="primary" 
           icon={<WrappedPlusIcon />}
           onClick={() => showModal()}
+          style={{
+            margin : "0 0 0 5px"
+          }}
         >
           Add Contractor
         </Button>

@@ -1,4 +1,7 @@
 import { Pool } from 'pg';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Create a single pool instance that will be shared across the application
 const pool = new Pool({
