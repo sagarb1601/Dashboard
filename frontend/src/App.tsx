@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DashboardLayout from './components/DashboardLayout';
@@ -21,12 +23,21 @@ import Services from './pages/hr/services/Services';
 import Training from './pages/hr/Training';
 import Recruitment from './pages/hr/Recruitment';
 import Manpower from './pages/hr/Manpower';
+import ClientsPage from './pages/business/Clients';
+import BusinessEntitiesPage from './pages/business/BusinessEntities';
+import PurchaseOrdersPage from './pages/business/PurchaseOrders';
+import ServiceDetailsPage from './pages/business/ServiceDetails';
+import TechnicalGroupMappingPage from './pages/business/TechnicalGroupMapping';
+import Products from './pages/business/Products';
 import { ConfigProvider } from 'antd';
 import './index.css';
+import BDServices from './pages/business/BDServices';
+import BDProjects from './pages/business/BDProjects';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireRole?: string;
+  allowedRoles?: string[];
 }
 
 // Helper function to get user's home path based on role/group
@@ -41,11 +52,12 @@ export const getUserHomePath = (role: string): string => {
     case 'hr': return '/hr/employees';
     case 'admin': return '/admin/contractors';
     case 'acts': return '/acts/courses';
+    case 'bd': return '/business/clients';
     default: return '/welcome';
   }
 };
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireRole }) => {
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireRole, allowedRoles }) => {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user.role?.toLowerCase();
@@ -54,6 +66,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireRole }
     token: !!token,
     userRole,
     requireRole,
+    allowedRoles,
     user
   });
 
@@ -64,6 +77,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireRole }
 
   // Check if the route requires specific role
   if (requireRole && userRole !== requireRole.toLowerCase()) {
+    console.log('Unauthorized access, redirecting to home path');
+    return <Navigate to={getUserHomePath(userRole)} />;
+  }
+
+  // Check if the route is allowed for the user
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
     console.log('Unauthorized access, redirecting to home path');
     return <Navigate to={getUserHomePath(userRole)} />;
   }
@@ -95,250 +114,315 @@ const App: React.FC = () => {
   const userRole = user.role?.toLowerCase();
 
   return (
-    <ConfigProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } />
-          <Route path="/unauthorized" element={
-            <div style={{ padding: '20px', textAlign: 'center' }}>
-              <h1>Unauthorized Access</h1>
-              <p>You do not have permission to access this area.</p>
-            </div>
-          } />
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <ConfigProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            } />
+            <Route path="/unauthorized" element={
+              <div style={{ padding: '20px', textAlign: 'center' }}>
+                <h1>Unauthorized Access</h1>
+                <p>You do not have permission to access this area.</p>
+              </div>
+            } />
 
-          {/* Finance routes */}
-          <Route path="/finance" element={
-            <ProtectedRoute requireRole="finance">
-              <DashboardLayout>
-                <Projects />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/finance/budget" element={
-            <ProtectedRoute requireRole="finance">
-              <DashboardLayout>
-                <BudgetFields />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/finance/yearly-budget" element={
-            <ProtectedRoute requireRole="finance">
-              <DashboardLayout>
-                <YearlyBudget />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/finance/expenditure" element={
-            <ProtectedRoute requireRole="finance">
-              <DashboardLayout>
-                <Expenditure />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/finance/grant-received" element={
-            <ProtectedRoute requireRole="finance">
-              <DashboardLayout>
-                <GrantReceived />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* Finance routes */}
+            <Route path="/finance" element={
+              <ProtectedRoute requireRole="finance">
+                <DashboardLayout>
+                  <Projects />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/finance/budget" element={
+              <ProtectedRoute requireRole="finance">
+                <DashboardLayout>
+                  <BudgetFields />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/finance/yearly-budget" element={
+              <ProtectedRoute requireRole="finance">
+                <DashboardLayout>
+                  <YearlyBudget />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/finance/expenditure" element={
+              <ProtectedRoute requireRole="finance">
+                <DashboardLayout>
+                  <Expenditure />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/finance/grant-received" element={
+              <ProtectedRoute requireRole="finance">
+                <DashboardLayout>
+                  <GrantReceived />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Routes for other user types */}
-          <Route path="/hr" element={
-            <ProtectedRoute requireRole="hr">
-              <Navigate to="/hr/employees" replace />
-            </ProtectedRoute>
-          } />
-          <Route path="/acts" element={
-            <ProtectedRoute requireRole="acts">
-              <Navigate to="/acts/courses" replace />
-            </ProtectedRoute>
-          } />
+            {/* Routes for other user types */}
+            <Route path="/hr" element={
+              <ProtectedRoute requireRole="hr">
+                <Navigate to="/hr/employees" replace />
+              </ProtectedRoute>
+            } />
+            <Route path="/acts" element={
+              <ProtectedRoute requireRole="acts">
+                <Navigate to="/acts/courses" replace />
+              </ProtectedRoute>
+            } />
 
-          {/* Admin routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute requireRole="admin">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/mmg" element={
-            <ProtectedRoute requireRole="mmg">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/bd" element={
-            <ProtectedRoute requireRole="bd">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/soulware" element={
-            <ProtectedRoute requireRole="soulware">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/asia" element={
-            <ProtectedRoute requireRole="asia">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/rise" element={
-            <ProtectedRoute requireRole="rise">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/trust" element={
-            <ProtectedRoute requireRole="trust">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/hpc" element={
-            <ProtectedRoute requireRole="hpc">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/qutech" element={
-            <ProtectedRoute requireRole="qutech">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/edoffice" element={
-            <ProtectedRoute requireRole="edoffice">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/vlsi" element={
-            <ProtectedRoute requireRole="vlsi">
-              <Dashboard />
-            </ProtectedRoute>
-          } />
+            {/* Admin routes */}
+            <Route path="/admin" element={
+              <ProtectedRoute requireRole="admin">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/mmg" element={
+              <ProtectedRoute requireRole="mmg">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/bd" element={
+              <ProtectedRoute requireRole="bd">
+                <Navigate to="/business/clients" replace />
+              </ProtectedRoute>
+            } />
+            <Route path="/soulware" element={
+              <ProtectedRoute requireRole="soulware">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/asia" element={
+              <ProtectedRoute requireRole="asia">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/rise" element={
+              <ProtectedRoute requireRole="rise">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/trust" element={
+              <ProtectedRoute requireRole="trust">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/hpc" element={
+              <ProtectedRoute requireRole="hpc">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/qutech" element={
+              <ProtectedRoute requireRole="qutech">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/edoffice" element={
+              <ProtectedRoute requireRole="edoffice">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/vlsi" element={
+              <ProtectedRoute requireRole="vlsi">
+                <Dashboard />
+              </ProtectedRoute>
+            } />
 
-          {/* Common routes */}
-          <Route path="/change-password" element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <ChangePassword />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* Common routes */}
+            <Route path="/change-password" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <ChangePassword />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Admin routes */}
-          <Route path="/admin/contractors" element={
-            <ProtectedRoute requireRole="admin">
-              <DashboardLayout>
-                <ContractorsPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/contractors/:contractorId/mappings" element={
-            <ProtectedRoute requireRole="admin">
-              <DashboardLayout>
-                <ContractorMappings />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/staff" element={
-            <ProtectedRoute requireRole="admin">
-              <DashboardLayout>
-                <StaffPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/amc" element={
-            <ProtectedRoute requireRole="admin">
-              <DashboardLayout>
-                <AMC />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/vehicles" element={
-            <ProtectedRoute requireRole="admin">
-              <DashboardLayout>
-                <VehiclesPage />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* Admin routes */}
+            <Route path="/admin/contractors" element={
+              <ProtectedRoute requireRole="admin">
+                <DashboardLayout>
+                  <ContractorsPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/contractors/:contractorId/mappings" element={
+              <ProtectedRoute requireRole="admin">
+                <DashboardLayout>
+                  <ContractorMappings />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/staff" element={
+              <ProtectedRoute requireRole="admin">
+                <DashboardLayout>
+                  <StaffPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/amc" element={
+              <ProtectedRoute requireRole="admin">
+                <DashboardLayout>
+                  <AMC />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/vehicles" element={
+              <ProtectedRoute requireRole="admin">
+                <DashboardLayout>
+                  <VehiclesPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Regular user route */}
-          <Route path="/welcome" element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <Welcome />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* Regular user route */}
+            <Route path="/welcome" element={
+              <ProtectedRoute>
+                <DashboardLayout>
+                  <Welcome />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Root redirect */}
-          <Route path="/" element={
-            <ProtectedRoute>
-              <Navigate to={getUserHomePath(userRole)} replace />
-            </ProtectedRoute>
-          } />
+            {/* Root redirect */}
+            <Route path="/" element={
+              <ProtectedRoute>
+                <Navigate to={getUserHomePath(userRole)} replace />
+              </ProtectedRoute>
+            } />
 
-          {/* HR routes */}
-          <Route path="/hr/employees" element={
-            <ProtectedRoute requireRole="hr">
-              <DashboardLayout>
-                <Employees />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* HR routes */}
+            <Route path="/hr/employees" element={
+              <ProtectedRoute requireRole="hr">
+                <DashboardLayout>
+                  <Employees />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* HR Training route */}
-          <Route path="/hr/training" element={
-            <ProtectedRoute requireRole="hr">
-              <DashboardLayout>
-                <Training />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* HR Training route */}
+            <Route path="/hr/training" element={
+              <ProtectedRoute requireRole="hr">
+                <DashboardLayout>
+                  <Training />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* HR Recruitment route */}
-          <Route path="/hr/recruitment" element={
-            <ProtectedRoute requireRole="hr">
-              <DashboardLayout>
-                <Recruitment />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* HR Recruitment route */}
+            <Route path="/hr/recruitment" element={
+              <ProtectedRoute requireRole="hr">
+                <DashboardLayout>
+                  <Recruitment />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* HR Manpower route */}
-          <Route path="/hr/manpower" element={
-            <ProtectedRoute requireRole="hr">
-              <DashboardLayout>
-                <Manpower />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* HR Manpower route */}
+            <Route path="/hr/manpower" element={
+              <ProtectedRoute requireRole="hr">
+                <DashboardLayout>
+                  <Manpower />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* ACTS routes */}
-          <Route path="/acts/courses" element={
-            <ProtectedRoute requireRole="acts">
-              <DashboardLayout>
-                <Courses />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* ACTS routes */}
+            <Route path="/acts/courses" element={
+              <ProtectedRoute requireRole="acts">
+                <DashboardLayout>
+                  <Courses />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* HR services route */}
-          <Route path="/hr/services" element={
-            <ProtectedRoute requireRole="hr">
-              <DashboardLayout>
-                <Services />
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
+            {/* HR services route */}
+            <Route path="/hr/services" element={
+              <ProtectedRoute requireRole="hr">
+                <DashboardLayout>
+                  <Services />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
 
-          {/* Redirect all other routes to user's home path */}
-          <Route path="*" element={
-            <Navigate to="/" />
-          } />
-        </Routes>
-      </Router>
-    </ConfigProvider>
+            {/* Business Module Routes */}
+            <Route path="/business" element={
+              <ProtectedRoute requireRole="bd">
+                <Navigate to="/business/clients" replace />
+              </ProtectedRoute>
+            } />
+            <Route path="/business/entities" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <BusinessEntitiesPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/clients" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <ClientsPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/purchase-orders" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <PurchaseOrdersPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/service-details" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <ServiceDetailsPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/technical-groups" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <TechnicalGroupMappingPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/products" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <Products />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/projects" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <BDProjects />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/services" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <BDServices />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+
+            {/* Redirect all other routes to user's home path */}
+            <Route path="*" element={
+              <Navigate to="/" />
+            } />
+          </Routes>
+        </Router>
+      </ConfigProvider>
+    </LocalizationProvider>
   );
 };
 

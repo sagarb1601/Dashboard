@@ -23,7 +23,18 @@ const migrations = [
   '017_add_initial_designation.sql',
   '018_update_promotions_constraints.sql',
   '021_update_training_fields.sql',
-  '022_create_manpower_table.sql'
+  '022_create_manpower_table.sql',
+  '027_create_bd_tables.sql',
+  '031_fix_products_table.sql',
+  '032_update_bd_tables.sql',
+  '033_create_bd_tables.sql',
+  '034_alter_bd_tables.sql',
+  '035_fix_business_entities.sql',
+  '036_fix_group_mappings.sql',
+  '037_fix_purchase_orders.sql',
+  '039_fix_entity_redundancy.sql',
+  '040_fix_services_constraint.sql',
+  '041_rename_bd_projects.sql'
 ];
 
 export async function runMigrations(pool: Pool) {
@@ -37,6 +48,23 @@ export async function runMigrations(pool: Pool) {
       );
     `);
 
+    // First, check if any migrations need to be rolled back
+    const executedMigrations = await pool.query(
+      'SELECT migration_name FROM migration_history ORDER BY executed_at DESC'
+    );
+
+    // Roll back migrations that are no longer in the list
+    for (const row of executedMigrations.rows) {
+      if (!migrations.includes(row.migration_name)) {
+        console.log(`Rolling back migration: ${row.migration_name}`);
+        await pool.query(
+          'DELETE FROM migration_history WHERE migration_name = $1',
+          [row.migration_name]
+        );
+      }
+    }
+
+    // Then run migrations in order
     for (const migration of migrations) {
       try {
         // Check if migration has already been executed

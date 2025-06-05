@@ -60,7 +60,7 @@ interface Expenditure {
   project_id: number;
   field_id: number;
   year_number: number;
-  period_type: 'PQ' | 'FY';
+  period_type: 'FY';
   period_number: number;
   amount_spent: number;
   expenditure_date: string;
@@ -95,11 +95,10 @@ const ExpenditurePage: React.FC = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [budgetEntries, setBudgetEntries] = useState<BudgetEntry[]>([]);
   const [viewMode, setViewMode] = useState<'quarter' | 'year'>('quarter');
-  const [showInLakhs, setShowInLakhs] = useState(false);
 
   const [formData, setFormData] = useState({
     year_number: 1,
-    period_type: 'FY' as 'PQ' | 'FY',
+    period_type: 'FY' as 'FY',
     period_number: 1,
     expenditure_date: new Date().toISOString().split('T')[0],
     entries: [] as ExpenditureEntry[],
@@ -199,8 +198,8 @@ const ExpenditurePage: React.FC = () => {
     if (selectedProject && budgetFields.length > 0) {
       setFormData(prev => ({
         ...prev,
-        year_number: getCurrentYear(prev.period_type, selectedProject.start_date),
-        period_number: getCurrentQuarter(prev.period_type, selectedProject.start_date),
+        year_number: getCurrentYear('FY', selectedProject.start_date),
+        period_number: getCurrentQuarter('FY', selectedProject.start_date),
         entries: budgetFields.map(field => ({
           field_id: field.field_id,
           amount_spent: '',
@@ -325,14 +324,14 @@ const ExpenditurePage: React.FC = () => {
     }
   };
 
-  const handlePeriodTypeChange = (newType: 'PQ' | 'FY') => {
+  const handlePeriodTypeChange = (newType: 'FY') => {
     if (!selectedProject) return;
 
     setFormData({
       ...formData,
       period_type: newType,
-      year_number: getCurrentYear(newType, selectedProject.start_date),
-      period_number: getCurrentQuarter(newType, selectedProject.start_date),
+      year_number: getCurrentYear('FY', selectedProject.start_date),
+      period_number: getCurrentQuarter('FY', selectedProject.start_date),
     });
   };
 
@@ -392,6 +391,11 @@ const ExpenditurePage: React.FC = () => {
       .sort((a, b) => a.year_number - b.year_number);
   };
 
+  const getQuarterInfo = (periodNumber: number, yearNumber: number) => {
+    const months = ['Apr-Jun', 'Jul-Sep', 'Oct-Dec', 'Jan-Mar'];
+    return `FY ${yearNumber}-${(yearNumber + 1).toString().slice(-2)} (${months[periodNumber - 1]})`;
+  };
+
   const getBudgetAmount = (fieldId: number, yearNumber: number): number => {
     const entry = budgetEntries.find(e => e.field_id === fieldId && e.year_number === yearNumber);
     return entry ? Number(entry.amount) : 0;
@@ -431,14 +435,6 @@ const ExpenditurePage: React.FC = () => {
 
   const formatAmount = (amount: number) => {
     if (amount === 0) return '-';
-    
-    if (showInLakhs) {
-      const inLakhs = amount / 100000;
-      return inLakhs.toLocaleString('en-IN', {
-        maximumFractionDigits: 2,
-        minimumFractionDigits: 0
-      }) + ' L';
-    }
     return amount.toLocaleString('en-IN', {
       maximumFractionDigits: 0,
       minimumFractionDigits: 0
@@ -447,19 +443,7 @@ const ExpenditurePage: React.FC = () => {
 
   const formatGrantAmount = (amount: number) => {
     if (amount === 0) return '-';
-    
-    // Convert to integer to avoid decimal issues
     const roundedAmount = Math.round(amount);
-    
-    if (showInLakhs) {
-      const inLakhs = roundedAmount / 100000;
-      return inLakhs.toLocaleString('en-IN', {
-        maximumFractionDigits: 2,
-        minimumFractionDigits: 0
-      }) + ' L';
-    }
-    
-    // Ensure the amount is treated as a number and use Indian locale
     return roundedAmount.toLocaleString('en-IN', {
       maximumFractionDigits: 0,
       minimumFractionDigits: 0,
@@ -480,6 +464,20 @@ const ExpenditurePage: React.FC = () => {
     if (j === 2 && k !== 12) return 'nd';
     if (j === 3 && k !== 13) return 'rd';
     return 'th';
+  };
+
+  const getFilteredExpenditures = () => {
+    return [...expenditures];
+  };
+
+  const getAvailableYears = () => {
+    const years = new Set(expenditures.map(exp => exp.year_number));
+    return Array.from(years).sort((a, b) => a - b);
+  };
+
+  const getAvailableQuarters = () => {
+    const quarters = new Set(expenditures.map(exp => exp.period_number));
+    return Array.from(quarters).sort((a, b) => a - b);
   };
 
   return (
@@ -506,26 +504,20 @@ const ExpenditurePage: React.FC = () => {
                   ))}
                 </Select>
               </FormControl>
+              
               <FormControl sx={{ minWidth: 150 }}>
                 <InputLabel>View Mode</InputLabel>
                 <Select
                   value={viewMode}
-                  onChange={(e) => setViewMode(e.target.value as 'quarter' | 'year')}
+                  onChange={(e) => {
+                    setViewMode(e.target.value as 'quarter' | 'year');
+                  }}
                   label="View Mode"
                 >
                   <MenuItem value="quarter">Quarter-wise</MenuItem>
                   <MenuItem value="year">Year-wise</MenuItem>
                 </Select>
               </FormControl>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showInLakhs}
-                    onChange={(e) => setShowInLakhs(e.target.checked)}
-                  />
-                }
-                label="Show in Lakhs"
-              />
             </Stack>
           </Box>
 
@@ -557,7 +549,7 @@ const ExpenditurePage: React.FC = () => {
                           getQuarterlyExpenditures().map((quarter) => (
                             <TableCell key={`${quarter.year_number}-${quarter.period_number}`} sx={{ fontWeight: 'bold' }}>
                               {quarter.period_type === 'FY' 
-                                ? `${getQuarterInfo(quarter.period_type, quarter.period_number)}`
+                                ? getQuarterInfo(quarter.period_number, quarter.year_number)
                                 : `Q${quarter.period_number}`
                               }
                             </TableCell>
@@ -570,6 +562,7 @@ const ExpenditurePage: React.FC = () => {
                           ))
                         )}
                         <TableCell sx={{ fontWeight: 'bold' }}>Total Expenditure</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Balance Remaining</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell></TableCell>
@@ -594,8 +587,10 @@ const ExpenditurePage: React.FC = () => {
                     </TableHead>
                     <TableBody>
                       {budgetFields.map(field => {
-                        const fieldExpenditures = expenditures.filter(exp => exp.field_id === field.field_id);
+                        const fieldExpenditures = getFilteredExpenditures().filter(exp => exp.field_id === field.field_id);
                         const totalExpenditure = fieldExpenditures.reduce((sum, exp) => sum + Number(exp.amount_spent), 0);
+                        const totalBudget = getFieldTotalBudget(field.field_id);
+                        const balanceRemaining = totalBudget - totalExpenditure;
                         
                         return (
                           <TableRow key={field.field_id}>
@@ -605,7 +600,7 @@ const ExpenditurePage: React.FC = () => {
                                 {formatAmount(getBudgetAmount(field.field_id, yearNum))}
                               </TableCell>
                             ))}
-                            <TableCell>{formatAmount(getFieldTotalBudget(field.field_id))}</TableCell>
+                            <TableCell>{formatAmount(totalBudget)}</TableCell>
                             <TableCell>
                               {field.total_grant_received > 0 
                                 ? formatGrantAmount(field.total_grant_received)
@@ -637,6 +632,9 @@ const ExpenditurePage: React.FC = () => {
                             )}
                             <TableCell>
                               {totalExpenditure > 0 ? formatAmount(totalExpenditure) : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {formatAmount(balanceRemaining)}
                             </TableCell>
                           </TableRow>
                         );
@@ -678,7 +676,13 @@ const ExpenditurePage: React.FC = () => {
                           })
                         )}
                         <TableCell sx={{ fontWeight: 'bold' }}>
-                          {formatAmount(expenditures.reduce((sum, exp) => sum + Number(exp.amount_spent), 0))}
+                          {formatAmount(getFilteredExpenditures().reduce((sum, exp) => sum + Number(exp.amount_spent), 0))}
+                        </TableCell>
+                        <TableCell sx={{ fontWeight: 'bold' }}>
+                          {formatAmount(
+                            budgetEntries.reduce((sum, entry) => sum + Number(entry.amount), 0) -
+                            getFilteredExpenditures().reduce((sum, exp) => sum + Number(exp.amount_spent), 0)
+                          )}
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -704,7 +708,7 @@ const ExpenditurePage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {expenditures.map((entry: Expenditure) => {
+                      {getFilteredExpenditures().map((entry: Expenditure) => {
                         const field = budgetFields.find(f => f.field_id === entry.field_id);
                         return (
                           <TableRow key={entry.expenditure_id}>
@@ -747,41 +751,16 @@ const ExpenditurePage: React.FC = () => {
             <DialogContent>
               <Stack spacing={2} sx={{ mt: 1 }}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} flexWrap="wrap">
-                  <FormControl sx={{ minWidth: { xs: '100%', md: '45%' } }}>
-                    <InputLabel>Period Type</InputLabel>
-                    <Select
-                      value={formData.period_type}
-                      onChange={(e) => handlePeriodTypeChange(e.target.value as 'PQ' | 'FY')}
-                      label="Period Type"
-                    >
-                      <MenuItem value="PQ">Project Quarter (from start date)</MenuItem>
-                      <MenuItem value="FY">Financial Year (Apr-Mar)</MenuItem>
-                    </Select>
-                  </FormControl>
-
                   <Box sx={{ width: { xs: '100%', md: '45%' } }}>
-                    {formData.period_type === 'FY' ? (
-                      <TextField
-                        fullWidth
-                        label="Financial Year"
-                        type="number"
-                        value={formData.year_number}
-                        onChange={(e) => setFormData({ ...formData, year_number: Number(e.target.value) })}
-                        required
-                        helperText={`FY ${formData.year_number}-${(formData.year_number + 1).toString().slice(-2)}`}
-                      />
-                    ) : (
-                      <TextField
-                        fullWidth
-                        label="Project Year"
-                        type="number"
-                        value={formData.year_number + 1}
-                        onChange={(e) => setFormData({ ...formData, year_number: Number(e.target.value) - 1 })}
-                        required
-                        inputProps={{ min: 1, max: selectedProject?.duration_years }}
-                        helperText={`Year ${formData.year_number + 1} of ${selectedProject?.duration_years}`}
-                      />
-                    )}
+                    <TextField
+                      fullWidth
+                      label="Financial Year"
+                      type="number"
+                      value={formData.year_number}
+                      onChange={(e) => setFormData({ ...formData, year_number: Number(e.target.value) })}
+                      required
+                      helperText={`FY ${formData.year_number}-${(formData.year_number + 1).toString().slice(-2)}`}
+                    />
                   </Box>
 
                   <FormControl sx={{ width: { xs: '100%', md: '45%' } }}>
@@ -791,9 +770,9 @@ const ExpenditurePage: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, period_number: Number(e.target.value) })}
                       label="Quarter"
                     >
-                      {Array.from({ length: getMaxQuarters() }, (_, i) => i + 1).map((quarter) => (
+                      {[1, 2, 3, 4].map((quarter) => (
                         <MenuItem key={quarter} value={quarter}>
-                          {getQuarterInfo(formData.period_type, quarter, selectedProject?.start_date)}
+                          {getQuarterInfo(quarter, formData.year_number)}
                         </MenuItem>
                       ))}
                     </Select>

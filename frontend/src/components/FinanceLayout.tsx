@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { Routes, Route, Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Box,
   Drawer,
   AppBar,
   Toolbar,
+  List,
   Typography,
   Divider,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
   IconButton,
   Menu,
   MenuItem,
@@ -13,19 +18,22 @@ import {
 import {
   Menu as MenuIcon,
   AccountCircle as AccountCircleIcon,
+  AttachMoney as MoneyIcon,
+  AccountBalance as AccountBalanceIcon,
+  Receipt as ReceiptIcon,
+  Assessment as AssessmentIcon,
+  Payment as PaymentIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import Sidebar from './Sidebar';
-
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
 
 const drawerWidth = 240;
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+interface FinanceLayoutProps {
+  children: React.ReactNode;
+}
+
+const FinanceLayout: React.FC<FinanceLayoutProps> = ({ children }) => {
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -53,15 +61,61 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
+  const menuItems = [
+    {
+      text: 'Projects',
+      icon: <AccountBalanceIcon />,
+      path: '/finance'
+    },
+    {
+      text: 'Budget Fields',
+      icon: <MoneyIcon />,
+      path: '/finance/budget'
+    },
+    {
+      text: 'Yearly Budget',
+      icon: <AssessmentIcon />,
+      path: '/finance/yearly-budget'
+    },
+    {
+      text: 'Expenditure',
+      icon: <PaymentIcon />,
+      path: '/finance/expenditure'
+    },
+    {
+      text: 'Grant Received',
+      icon: <ReceiptIcon />,
+      path: '/finance/grant-received'
+    }
+  ];
+
   const drawer = (
     <div>
       <Toolbar>
         <Typography variant="h6" noWrap component="div">
-          {user.role || 'User'} Dashboard
+          Finance Dashboard
         </Typography>
       </Toolbar>
       <Divider />
-      <Sidebar />
+      <List>
+        {menuItems.map((item) => (
+          <ListItem 
+            key={item.text} 
+            component={RouterLink}
+            to={item.path}
+            sx={{ 
+              textDecoration: 'none',
+              color: 'inherit',
+              '&:hover': {
+                backgroundColor: 'rgba(0, 0, 0, 0.04)',
+              }
+            }}
+          >
+            <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemText primary={item.text} />
+          </ListItem>
+        ))}
+      </List>
     </div>
   );
 
@@ -85,9 +139,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Dashboard
+            Finance Management
           </Typography>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div>
             <IconButton
               size="large"
               aria-label="account of current user"
@@ -154,11 +208,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
           width: { sm: `calc(100% - ${drawerWidth}px)` },
           mt: '64px',
           backgroundColor: '#f5f7fa',
-          //minHeight: 'calc(100vh - 64px)',
+          minHeight: 'calc(100vh - 64px)',
+          p: 3
         }}
       >
         {children}
@@ -167,4 +221,4 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   );
 };
 
-export default DashboardLayout; 
+export default FinanceLayout; 

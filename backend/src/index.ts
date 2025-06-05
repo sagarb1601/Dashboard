@@ -12,6 +12,8 @@ import actsRoutes from './routes/acts';
 import hrRoutes from './routes/hr';
 import hrServicesRouter from './routes/hr_services';
 import manpowerRouter from './routes/manpower';
+import financeRouter from './routes/finance';
+import businessRouter from './routes/business';
 
 const app = express();
 
@@ -32,7 +34,7 @@ initializeDatabase().catch(console.error);
 
 // Register routes
 app.use('/api/auth', authRoutes);
-app.use('/api/finance', financeRoutes);
+app.use('/api/finance', financeRouter);
 app.use('/api/amc', amcRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin/contractors', adminContractorsRoutes);
@@ -42,6 +44,7 @@ app.use('/api/acts', actsRoutes);
 app.use('/api/hr', hrRoutes);
 app.use('/api/hr/services', hrServicesRouter);
 app.use('/api/manpower', manpowerRouter);
+app.use('/api/business', businessRouter);
 
 const PORT = process.env.PORT || 5000;
 

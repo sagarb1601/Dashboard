@@ -346,33 +346,79 @@ const GrantReceivedPage: React.FC = () => {
                   <Table size="small">
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
-                        {budgetFields.map(field => (
-                          <TableCell key={field.field_id} sx={{ fontWeight: 'bold' }}>
-                            {field.field_name}
-                          </TableCell>
-                        ))}
-                        <TableCell sx={{ fontWeight: 'bold' }}>Remarks</TableCell>
+                        <TableCell sx={{ fontWeight: 'bold', width: '200px' }}>Budget Field</TableCell>
+                        {Object.values(groupedGrantEntries)
+                          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                          .map((entry) => (
+                            <TableCell key={entry.date} sx={{ fontWeight: 'bold', minWidth: '150px' }}>
+                              {new Date(entry.date).toLocaleDateString()}
+                              {entry.remarks && (
+                                <Typography variant="caption" display="block" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                                  {entry.remarks}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          ))}
+                        <TableCell sx={{ fontWeight: 'bold', width: '150px' }}>Total Received</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Object.values(groupedGrantEntries)
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                        .map((entry) => (
-                          <TableRow key={entry.date}>
-                            <TableCell>{new Date(entry.date).toLocaleDateString()}</TableCell>
-                            {budgetFields.map(field => (
-                              <TableCell key={field.field_id}>
-                                {entry.fields[field.field_id] ? 
-                                  entry.fields[field.field_id].toLocaleString('en-IN', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  }) : '—'}
-                              </TableCell>
-                            ))}
-                            <TableCell>{entry.remarks || '—'}</TableCell>
+                      {budgetFields.map(field => {
+                        const totalReceived = Object.values(groupedGrantEntries)
+                          .reduce((sum, entry) => sum + (Number(entry.fields[field.field_id]) || 0), 0);
+                        
+                        return (
+                          <TableRow key={field.field_id}>
+                            <TableCell>{field.field_name}</TableCell>
+                            {Object.values(groupedGrantEntries)
+                              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                              .map((entry) => (
+                                <TableCell key={entry.date}>
+                                  {entry.fields[field.field_id] ? 
+                                    Number(entry.fields[field.field_id]).toLocaleString('en-IN', {
+                                      maximumFractionDigits: 0,
+                                      minimumFractionDigits: 0
+                                    }) : '—'}
+                                </TableCell>
+                              ))}
+                            <TableCell sx={{ fontWeight: 'bold' }}>
+                              {Number(totalReceived).toLocaleString('en-IN', {
+                                maximumFractionDigits: 0,
+                                minimumFractionDigits: 0
+                              })}
+                            </TableCell>
                           </TableRow>
-                        ))}
+                        );
+                      })}
+                      <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                        <TableCell sx={{ fontWeight: 'bold' }}>Total</TableCell>
+                        {Object.values(groupedGrantEntries)
+                          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                          .map((entry) => {
+                            const total = Object.values(entry.fields)
+                              .reduce((sum, amount) => sum + Number(amount), 0);
+                            return (
+                              <TableCell key={entry.date} sx={{ fontWeight: 'bold' }}>
+                                {Number(total).toLocaleString('en-IN', {
+                                  maximumFractionDigits: 0,
+                                  minimumFractionDigits: 0
+                                })}
+                              </TableCell>
+                            );
+                          })}
+                        <TableCell sx={{ fontWeight: 'bold' }}>
+                          {Number(
+                            Object.values(groupedGrantEntries)
+                              .reduce((sum, entry) => 
+                                sum + Object.values(entry.fields)
+                                  .reduce((s, amount) => s + Number(amount), 0)
+                              , 0)
+                          ).toLocaleString('en-IN', {
+                            maximumFractionDigits: 0,
+                            minimumFractionDigits: 0
+                          })}
+                        </TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
