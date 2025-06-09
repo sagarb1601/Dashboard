@@ -1,12 +1,9 @@
-import React, { useState } from 'react';
-import {
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemButton,
-  Collapse,
-} from '@mui/material';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Menu } from 'antd';
+import { FolderOutlined } from '@ant-design/icons';
+import type { MenuProps } from 'antd';
+import styles from './Sidebar.module.css';
 import {
   School as SchoolIcon,
   Group as TeamIcon,
@@ -21,166 +18,235 @@ import {
   WorkHistory as TrainingIcon,
   PersonAdd as RecruitmentIcon,
   PeopleAlt as ManpowerIcon,
-  Dashboard as DashboardIcon,
   Business as BusinessIcon,
   Category as CategoryIcon,
   GroupWork as GroupWorkIcon,
   Receipt as ReceiptIcon,
-  ExpandLess as ExpandLessIcon,
-  ExpandMore as ExpandMoreIcon,
-  Folder as FolderIcon,
   MiscellaneousServices as MiscellaneousServicesIcon,
   Inventory2 as Inventory2Icon,
   Assignment as AssignmentIcon,
+  CalendarToday as CalendarTodayIcon,
+  MenuBook as MenuBookIcon,
+  Handshake as HandshakeIcon
 } from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Link } from 'react-router-dom';
-
-interface MenuItem {
-  text: string;
-  icon?: React.ReactNode;
-  path?: string;
-  children?: MenuItem[];
-}
 
 const Sidebar: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [openMenus, setOpenMenus] = useState<{ [key: string]: boolean }>({});
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const userRole = user.role?.toLowerCase();
+  const role = user.role?.toLowerCase();
+  const navigate = useNavigate();
 
-  const handleMenuClick = (item: MenuItem) => {
-    if (item.children) {
-      setOpenMenus(prev => ({
-        ...prev,
-        [item.text]: !prev[item.text]
-      }));
-    } else if (item.path) {
-      navigate(item.path);
-    }
+  const iconProps = {
+    onPointerEnterCapture: () => {},
+    onPointerLeaveCapture: () => {}
   };
 
-  const getMenuItems = (): MenuItem[] => {
-    switch (userRole) {
+  const getMenuItems = (): MenuProps['items'] => {
+    switch (role) {
       case 'finance':
         return [
-          { text: 'Projects', icon: <ProjectIcon />, path: '/finance' },
-          { text: 'Budget Fields', icon: <BudgetIcon />, path: '/finance/budget' },
-          { text: 'Yearly Budget', icon: <YearlyBudgetIcon />, path: '/finance/yearly-budget' },
-          { text: 'Expenditure', icon: <ExpenditureIcon />, path: '/finance/expenditure' },
-          { text: 'Grant Received', icon: <GrantIcon />, path: '/finance/grant-received' },
+          { 
+            key: 'projects',
+            icon: <ProjectIcon />,
+            label: 'Projects',
+            onClick: () => navigate('/finance')
+          },
+          { 
+            key: 'budget',
+            icon: <BudgetIcon />,
+            label: 'Budget Fields',
+            onClick: () => navigate('/finance/budget')
+          },
+          { 
+            key: 'yearly-budget',
+            icon: <YearlyBudgetIcon />,
+            label: 'Yearly Budget',
+            onClick: () => navigate('/finance/yearly-budget')
+          },
+          { 
+            key: 'expenditure',
+            icon: <ExpenditureIcon />,
+            label: 'Expenditure',
+            onClick: () => navigate('/finance/expenditure')
+          },
+          { 
+            key: 'grant',
+            icon: <GrantIcon />,
+            label: 'Grant Received',
+            onClick: () => navigate('/finance/grant-received')
+          },
         ];
+
       case 'admin':
         return [
-          { text: 'Contractors', icon: <TeamIcon />, path: '/admin/contractors' },
-          { text: 'Staff', icon: <StaffIcon />, path: '/admin/staff' },
-          { text: 'AMC', icon: <BuildIcon />, path: '/admin/amc' },
-          { text: 'Vehicles', icon: <CarIcon />, path: '/admin/vehicles' },
+          { 
+            key: 'contractors',
+            icon: <TeamIcon />,
+            label: 'Contractors',
+            onClick: () => navigate('/admin/contractors')
+          },
+          { 
+            key: 'staff',
+            icon: <StaffIcon />,
+            label: 'Staff',
+            onClick: () => navigate('/admin/staff')
+          },
+          { 
+            key: 'amc',
+            icon: <BuildIcon />,
+            label: 'AMC',
+            onClick: () => navigate('/admin/amc')
+          },
+          { 
+            key: 'vehicles',
+            icon: <CarIcon />,
+            label: 'Vehicles',
+            onClick: () => navigate('/admin/vehicles')
+          },
         ];
+
       case 'acts':
         return [
-          { text: 'Courses Info', icon: <SchoolIcon />, path: '/welcome' },
+          { 
+            key: 'courses',
+            icon: <SchoolIcon />,
+            label: 'Courses Info',
+            onClick: () => navigate('/welcome')
+          },
         ];
+
       case 'hr':
         return [
-          { text: 'Employees', icon: <StaffIcon />, path: '/hr/employees' },
-          { text: 'Services', icon: <BuildIcon />, path: '/hr/services' },
-          { text: 'Training', icon: <TrainingIcon />, path: '/hr/training' },
-          { text: 'Recruitment', icon: <RecruitmentIcon />, path: '/hr/recruitment' },
-          { text: 'Manpower', icon: <ManpowerIcon />, path: '/hr/manpower' },
+          { 
+            key: 'employees',
+            icon: <StaffIcon />,
+            label: 'Employees',
+            onClick: () => navigate('/hr/employees')
+          },
+          { 
+            key: 'services',
+            icon: <BuildIcon />,
+            label: 'Services',
+            onClick: () => navigate('/hr/services')
+          },
+          { 
+            key: 'training',
+            icon: <TrainingIcon />,
+            label: 'Training',
+            onClick: () => navigate('/hr/training')
+          },
+          { 
+            key: 'recruitment',
+            icon: <RecruitmentIcon />,
+            label: 'Recruitment',
+            onClick: () => navigate('/hr/recruitment')
+          },
+          { 
+            key: 'manpower',
+            icon: <ManpowerIcon />,
+            label: 'Manpower',
+            onClick: () => navigate('/hr/manpower')
+          },
         ];
+
       case 'bd':
         return [
           {
-            text: 'Clients',
+            key: 'clients',
             icon: <BusinessIcon />,
-            path: '/business/clients'
+            label: 'Clients',
+            onClick: () => navigate('/business/clients')
           },
           {
-            text: 'Business Entities',
+            key: 'entities',
             icon: <CategoryIcon />,
-            path: '/business/entities'
+            label: 'Business Entities',
+            onClick: () => navigate('/business/entities')
           },
           {
-            text: 'BD Services',
+            key: 'services',
             icon: <MiscellaneousServicesIcon />,
-            path: '/business/services'
+            label: 'BD Services',
+            onClick: () => navigate('/business/services')
           },
           {
-            text: 'BD Products',
+            key: 'products',
             icon: <Inventory2Icon />,
-            path: '/business/products'
+            label: 'BD Products',
+            onClick: () => navigate('/business/products')
           },
           {
-            text: 'BD Projects',
+            key: 'projects',
             icon: <AssignmentIcon />,
-            path: '/business/projects'
+            label: 'BD Projects',
+            onClick: () => navigate('/business/projects')
           },
           {
-            text: 'Technical Groups',
+            key: 'technical-groups',
             icon: <GroupWorkIcon />,
-            path: '/business/technical-groups'
+            label: 'Technical Groups',
+            onClick: () => navigate('/business/technical-groups')
           },
           {
-            text: 'Purchase Orders',
+            key: 'purchase-orders',
             icon: <ReceiptIcon />,
-            path: '/business/purchase-orders'
+            label: 'Purchase Orders',
+            onClick: () => navigate('/business/purchase-orders')
           },
           {
-            text: 'Service Details',
+            key: 'service-details',
             icon: <BuildIcon />,
-            path: '/business/service-details'
+            label: 'Service Details',
+            onClick: () => navigate('/business/service-details')
+          },
+          {
+            key: 'agreements',
+            icon: <HandshakeIcon />,
+            label: 'Agreements',
+            onClick: () => navigate('/business/agreements')
           }
         ];
+
+      case 'tg':
+        return [
+          {
+            key: 'project-status',
+            icon: <FolderOutlined {...iconProps} />,
+            label: 'Project Status',
+            onClick: () => navigate('/technical/project-status')
+          },
+          {
+            key: 'events',
+            icon: <FolderOutlined {...iconProps} />,
+            label: 'Events',
+            onClick: () => navigate('/technical/events')
+          },
+          {
+            key: 'publications',
+            icon: <FolderOutlined {...iconProps} />,
+            label: 'Publications',
+            onClick: () => navigate('/technical/publications')
+          },
+          {
+            key: 'pi-copi',
+            icon: <FolderOutlined {...iconProps} />,
+            label: 'PI/CoPI Management',
+            onClick: () => navigate('/technical/pi-copi')
+          }
+        ];
+
       default:
         return [];
     }
   };
 
-  const renderMenuItem = (item: MenuItem) => {
-    const isSelected = item.path === location.pathname;
-    const isOpen = openMenus[item.text];
-
-    return (
-      <React.Fragment key={item.text}>
-        <ListItem disablePadding>
-          <ListItemButton
-            selected={isSelected}
-            onClick={() => handleMenuClick(item)}
-            sx={item.children ? {} : undefined}
-          >
-            {item.icon && <ListItemIcon>{item.icon}</ListItemIcon>}
-            <ListItemText primary={item.text} />
-            {item.children && (
-              isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />
-            )}
-          </ListItemButton>
-        </ListItem>
-        {item.children && (
-          <Collapse in={isOpen} timeout="auto" unmountOnExit>
-            <List component="div" disablePadding>
-              {item.children.map((child) => (
-                <ListItemButton
-                  key={child.text}
-                  selected={child.path === location.pathname}
-                  onClick={() => child.path && navigate(child.path)}
-                  sx={{ pl: 4 }}
-                >
-                  <ListItemText primary={child.text} />
-                </ListItemButton>
-              ))}
-            </List>
-          </Collapse>
-        )}
-      </React.Fragment>
-    );
-  };
-
   return (
-    <List>
-      {getMenuItems().map(renderMenuItem)}
-    </List>
+    <div className={styles.menuContainer}>
+      <Menu
+        mode="inline"
+        items={getMenuItems()}
+        style={{ width: '100%' }}
+      />
+    </div>
   );
 };
 

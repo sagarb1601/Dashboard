@@ -22,6 +22,7 @@ import {
   Typography,
   Stack,
   Alert,
+  FormHelperText,
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { useFormik } from 'formik';
@@ -38,6 +39,14 @@ interface Project {
   funding_agency: string;
   duration_years: number;
   created_at: string;
+  group_id: number;
+  group_name: string;
+}
+
+interface TechnicalGroup {
+  group_id: number;
+  group_name: string;
+  group_description: string;
 }
 
 const validationSchema = yup.object({
@@ -57,10 +66,12 @@ const validationSchema = yup.object({
     .required('Duration is required')
     .positive('Duration must be positive')
     .integer('Duration must be a whole number'),
+  group_id: yup.number().required('Technical group is required'),
 });
 
 const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [technicalGroups, setTechnicalGroups] = useState<TechnicalGroup[]>([]);
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [otherAgency, setOtherAgency] = useState('');
@@ -76,6 +87,7 @@ const Projects = () => {
       total_value: '',
       funding_agency: 'MeitY',
       duration_years: 1,
+      group_id: '',
     },
     validationSchema: validationSchema,
     onSubmit: async (values) => {
@@ -86,7 +98,10 @@ const Projects = () => {
           extension_end_date: values.extension_end_date || null,
           total_value: Number(values.total_value),
           duration_years: Number(values.duration_years),
+          group_id: values.group_id ? Number(values.group_id) : null,
         };
+
+        console.log('Submitting form with values:', finalValues);
 
         const url = editingProject 
           ? `http://localhost:5000/api/finance/projects/${editingProject.project_id}`
@@ -101,12 +116,17 @@ const Projects = () => {
           body: JSON.stringify(finalValues),
         });
 
+        console.log('Form submission response:', response);
+
         if (response.ok) {
+          const data = await response.json();
+          console.log('Form submission successful:', data);
           setSuccess(`Project ${editingProject ? 'updated' : 'created'} successfully`);
           fetchProjects();
           handleClose();
         } else {
           const data = await response.json();
+          console.error('Form submission failed:', data);
           setError(data.error || `Failed to ${editingProject ? 'update' : 'create'} project`);
         }
       } catch (error) {
@@ -133,8 +153,39 @@ const Projects = () => {
     }
   };
 
+  const fetchTechnicalGroups = async () => {
+    try {
+      console.log('Fetching technical groups...');
+      const response = await fetch('http://localhost:5000/api/hr/technical_groups', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      console.log('Technical groups response:', response);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Technical groups data:', data);
+        if (Array.isArray(data) && data.length > 0) {
+          setTechnicalGroups(data);
+          console.log('Technical groups set successfully:', data);
+        } else {
+          console.error('Technical groups data is empty or not an array:', data);
+          setError('No technical groups found');
+        }
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to fetch technical groups:', response.status, response.statusText, errorData);
+        setError(`Failed to fetch technical groups: ${errorData.error || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Error fetching technical groups:', error);
+      setError('Failed to fetch technical groups');
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
+    fetchTechnicalGroups();
   }, []);
 
   const handleClickOpen = () => {
@@ -150,6 +201,7 @@ const Projects = () => {
   };
 
   const handleEdit = (project: Project) => {
+    console.log('Editing project:', project);
     setEditingProject(project);
     formik.setValues({
       project_name: project.project_name,
@@ -159,7 +211,9 @@ const Projects = () => {
       total_value: project.total_value.toString(),
       funding_agency: project.funding_agency,
       duration_years: project.duration_years,
+      group_id: project.group_id ? project.group_id.toString() : '',
     });
+    console.log('Form values set:', formik.values);
     setOpen(true);
   };
 
@@ -226,6 +280,7 @@ const Projects = () => {
                     <TableCell>Total Value</TableCell>
                     <TableCell>Funding Agency</TableCell>
                     <TableCell>Duration (Years)</TableCell>
+                    <TableCell>Technical Group</TableCell>
                     <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -243,6 +298,7 @@ const Projects = () => {
                       <TableCell>₹{project.total_value.toLocaleString()}</TableCell>
                       <TableCell>{project.funding_agency}</TableCell>
                       <TableCell>{project.duration_years}</TableCell>
+                      <TableCell>{project.group_name}</TableCell>
                       <TableCell>
                         <IconButton onClick={() => handleEdit(project)} color="primary">
                           <EditIcon />
@@ -367,6 +423,29 @@ const Projects = () => {
                   error={formik.touched.duration_years && Boolean(formik.errors.duration_years)}
                   helperText={formik.touched.duration_years && formik.errors.duration_years}
                 />
+
+                <FormControl fullWidth error={formik.touched.group_id && Boolean(formik.errors.group_id)}>
+                  <InputLabel id="technical-group-label">Technical Group</InputLabel>
+                  <Select
+                    labelId="technical-group-label"
+                    id="group_id"
+                    name="group_id"
+                    value={formik.values.group_id}
+                    onChange={formik.handleChange}
+                    onBlur={formik.handleBlur}
+                    label="Technical Group"
+                  >
+                    <MenuItem value="">Select a group</MenuItem>
+                    {technicalGroups.map((group) => (
+                      <MenuItem key={group.group_id} value={group.group_id}>
+                        {group.group_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {formik.touched.group_id && formik.errors.group_id && (
+                    <FormHelperText>{formik.errors.group_id}</FormHelperText>
+                  )}
+                </FormControl>
               </Stack>
             </DialogContent>
             <DialogActions>

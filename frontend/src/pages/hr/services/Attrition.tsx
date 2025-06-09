@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Form, message, Input, Button, Select, DatePicker, Modal, Table, Space } from 'antd';
+import { Form, message, Input, Button, Select, DatePicker, Modal, Table, Space, Popconfirm } from 'antd';
 import type { SelectProps } from 'antd/es/select';
 import type { DatePickerProps } from 'antd/es/date-picker';
 import type { ButtonProps } from 'antd/es/button';
-import api from '../../../utils/api';
+import api, { attrition } from '../../../utils/api';
 import dayjs from 'dayjs';
 
 interface Employee {
@@ -61,15 +61,7 @@ const Attrition: React.FC = () => {
   const fetchAttritionRecords = async () => {
     try {
       console.log('Fetching attrition records...');
-      const response = await api.get('/hr/services/attrition').catch(error => {
-        console.error('Axios error details:', {
-          message: error.message,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data
-        });
-        throw error;
-      });
+      const response = await attrition.getAll();
       console.log('Attrition API response:', response);
       if (!response.data || response.data.length === 0) {
         console.log('No attrition records found');
@@ -100,11 +92,18 @@ const Attrition: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
+      console.log('Deleting attrition record:', id);
       await api.delete(`/hr/services/attrition/${id}`);
       message.success('Attrition record deleted successfully');
       fetchAttritionRecords();
     } catch (error: any) {
       console.error('Error deleting attrition record:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: error.config
+      });
       message.error(error.response?.data?.message || 'Failed to delete attrition record');
     }
   };
@@ -121,7 +120,7 @@ const Attrition: React.FC = () => {
       };
       
       if (editingRecord) {
-        const response = await api.put(`/hr/services/attrition/${editingRecord.id}`, postData);
+        const response = await attrition.update(editingRecord.id, postData);
         if (response.data) {
           message.success('Attrition record updated successfully');
           form.resetFields();
@@ -130,18 +129,36 @@ const Attrition: React.FC = () => {
           fetchAttritionRecords();
         }
       } else {
-        const response = await api.post('/hr/services/attrition', postData);
-        if (response.data) {
-          message.success('Attrition record added successfully');
-          form.resetFields();
-          setOpen(false);
-          setEditingRecord(null);
-          fetchAttritionRecords();
+        try {
+          const response = await attrition.create(postData);
+          if (response.data) {
+            message.success('Attrition record added successfully');
+            form.resetFields();
+            setOpen(false);
+            setEditingRecord(null);
+            fetchAttritionRecords();
+          }
+        } catch (err: any) {
+          if (err.response?.status === 409) {
+            // Handle duplicate record error
+            Modal.error({
+              title: 'Cannot Create Attrition Record',
+              content: 'An attrition record already exists for this employee. Each employee can only have one attrition record.',
+            });
+          } else if (err.response?.status === 400 && err.response?.data?.error?.includes('inactive')) {
+            // Handle inactive employee error
+            Modal.error({
+              title: 'Cannot Create Attrition Record',
+              content: 'Cannot create attrition record for an inactive employee.',
+            });
+          } else {
+            throw err; // Re-throw other errors to be caught by outer catch block
+          }
         }
       }
     } catch (error: any) {
       console.error('Error saving attrition record:', error);
-      message.error(error.response?.data?.message || `Failed to ${editingRecord ? 'update' : 'add'} attrition record`);
+      message.error(error.response?.data?.error || `Failed to ${editingRecord ? 'update' : 'add'} attrition record`);
     } finally {
       setLoading(false);
     }
@@ -176,23 +193,15 @@ const Attrition: React.FC = () => {
       render: (_: any, record: AttritionRecord) => (
         <Space size="middle">
           <Button type="link" onClick={() => handleEdit(record)}>Edit</Button>
-          <Button 
-            type="link" 
-            danger 
-            onClick={() => {
-              Modal.confirm({
-                title: 'Delete Attrition Record',
-                content: 'Are you sure you want to delete this attrition record? This action cannot be undone.',
-                okText: 'Yes, Delete',
-                okType: 'danger',
-                cancelText: 'No, Cancel',
-                onOk: () => handleDelete(record.id),
-                maskClosable: true
-              });
-            }}
+          <Popconfirm
+            title="Are you sure you want to delete this attrition record?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Yes"
+            cancelText="No"
+            okType="danger"
           >
-            Delete
-          </Button>
+            <Button type="link" danger>Delete</Button>
+          </Popconfirm>
         </Space>
       ),
     }

@@ -1,8 +1,12 @@
 import { Router, Request, Response, RequestHandler } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { pool } from '../db/db';
+import agreementsRouter from './business/agreements';
 
 const router = Router();
+
+// Use agreements router
+router.use('/agreements', agreementsRouter);
 
 // ==================== Clients Routes ====================
 router.get('/clients', authenticateToken, async (req: Request, res: Response): Promise<void> => {

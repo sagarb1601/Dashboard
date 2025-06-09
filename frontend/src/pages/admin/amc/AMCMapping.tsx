@@ -8,12 +8,15 @@ import {
   Space,
   message,
   Select,
-  DatePicker
+  DatePicker,
+  Popconfirm
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import api, { amcContracts } from '../../../utils/api';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
+import ActionButtons from '../../../components/common/ActionButtons';
+import FormModal from '../../../components/common/FormModal';
 
 const { RangePicker } = DatePicker;
 
@@ -40,6 +43,10 @@ interface AMCMapping {
   created_at: string;
 }
 
+interface AMCMappingProps {
+  onMappingDeleted?: () => void;
+}
+
 const EQUIPMENT_TYPES = [
   'AC',
   'Water Purifier',
@@ -52,7 +59,7 @@ const EQUIPMENT_TYPES = [
   'Printer'
 ];
 
-const AMCMappingComponent: React.FC = () => {
+const AMCMappingComponent: React.FC<AMCMappingProps> = ({ onMappingDeleted }) => {
   const [mappings, setMappings] = useState<AMCMapping[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -60,6 +67,13 @@ const AMCMappingComponent: React.FC = () => {
   const [editingMapping, setEditingMapping] = useState<AMCMapping | null>(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isContractActive = (record: AMCMapping) => {
+    const today = dayjs();
+    const endDate = dayjs(record.end_date);
+    return endDate.isAfter(today);
+  };
 
   const fetchData = async () => {
     try {
@@ -90,44 +104,13 @@ const AMCMappingComponent: React.FC = () => {
   const handleAdd = () => {
     setEditingMapping(null);
     form.resetFields();
+    setError(null);
     setIsModalVisible(true);
-  };
-
-  const handleEdit = (record: AMCMapping) => {
-    setEditingMapping(record);
-    form.setFieldsValue({
-      ...record,
-      contract_period: [dayjs(record.start_date), dayjs(record.end_date)]
-    });
-    setIsModalVisible(true);
-  };
-
-  const handleDelete = async (id: number) => {
-    try {
-      console.log('Delete request starting for contract:', id);
-      
-      const response = await amcContracts.delete(id);
-      console.log('Delete API response:', response);
-      
-      if (response.status === 200) {
-        await fetchData(); // Refresh the data after successful deletion
-        return true;
-      }
-      
-      throw new Error(response.data?.message || 'Failed to delete contract');
-    } catch (error: any) {
-      console.error('Delete operation error:', error);
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Failed to delete contract';
-      message.error(errorMessage);
-      return false;
-    }
   };
 
   const handleSubmit = async (values: any) => {
     setLoading(true);
+    setError(null);
     try {
       const [startDate, endDate] = values.contract_period;
       const data = {
@@ -151,11 +134,21 @@ const AMCMappingComponent: React.FC = () => {
       setIsModalVisible(false);
       form.resetFields();
       fetchData();
-    } catch (error) {
-      console.error('Failed to save mapping:', error);
-      message.error('Failed to save mapping');
+    } catch (error: any) {
+      setError(error.response?.data?.message || 'Failed to save mapping');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await api.delete(`/amc/contracts/${id}`);
+      message.success('Contract deleted successfully');
+      fetchData();
+      onMappingDeleted?.();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to delete contract');
     }
   };
 
@@ -192,6 +185,18 @@ const AMCMappingComponent: React.FC = () => {
       sorter: (a, b) => a.amc_value - b.amc_value,
     },
     {
+      title: 'Status',
+      key: 'status',
+      render: (_, record) => (
+        <span style={{ 
+          color: isContractActive(record) ? '#52c41a' : '#ff4d4f',
+          fontWeight: 'bold'
+        }}>
+          {isContractActive(record) ? 'Active' : 'Inactive'}
+        </span>
+      ),
+    },
+    {
       title: 'Remarks',
       dataIndex: 'remarks',
       key: 'remarks',
@@ -200,49 +205,28 @@ const AMCMappingComponent: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record: AMCMapping) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => handleEdit(record)}>
-            Edit
-          </Button>
-          <Button 
-            type="link" 
-            danger 
-            onClick={() => {
-              console.log('Delete button clicked for record:', record);
-              Modal.confirm({
-                title: 'Delete Contract',
-                content: `Are you sure you want to delete the contract for ${record.equipment_name} with ${record.amcprovider_name}?`,
-                okText: 'Yes, Delete',
-                okType: 'danger',
-                cancelText: 'No, Cancel',
-                onOk: () => {
-                  console.log('Delete confirmation clicked for contract ID:', record.amccontract_id);
-                  message.loading({ content: 'Deleting contract...', key: 'deleteLoading' });
-                  return handleDelete(record.amccontract_id)
-                    .then(success => {
-                      console.log('Delete operation result:', success);
-                      if (success) {
-                        message.success('Contract deleted successfully');
-                      }
-                      return success;
-                    })
-                    .catch(error => {
-                      console.error('Error in delete operation:', error);
-                      message.error('Failed to delete contract');
-                      return false;
-                    })
-                    .finally(() => {
-                      console.log('Delete operation completed');
-                      message.destroy('deleteLoading');
-                    });
-                },
-              });
-            }}
-          >
-            Delete
-          </Button>
-        </Space>
+      render: (_, record) => (
+        <ActionButtons
+          onEdit={() => {
+            setEditingMapping(record);
+            form.setFieldsValue({
+              equipment_id: record.equipment_id,
+              amcprovider_id: record.amcprovider_id,
+              contract_period: [
+                dayjs(record.start_date),
+                dayjs(record.end_date)
+              ],
+              amc_value: record.amc_value,
+              remarks: record.remarks
+            });
+            setError(null);
+            setIsModalVisible(true);
+          }}
+          onDelete={() => handleDelete(record.amccontract_id)}
+          deleteDisabled={!isContractActive(record)}
+          deleteTooltip="Only active AMC contracts can be deleted"
+          recordName={`${record.equipment_name} - ${record.amcprovider_name}`}
+        />
       ),
     },
   ];
@@ -263,103 +247,100 @@ const AMCMappingComponent: React.FC = () => {
         rowKey="amccontract_id"
       />
 
-      <Modal
+      <FormModal
         title={editingMapping ? 'Edit Equipment Mapping' : 'Add Equipment Mapping'}
         open={isModalVisible}
         onCancel={() => {
           setIsModalVisible(false);
+          setError(null);
           form.resetFields();
         }}
-        footer={null}
+        form={form}
+        onFinish={handleSubmit}
+        loading={loading}
+        error={error}
         width={600}
       >
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout="vertical"
+        <Form.Item
+          name="equipment_id"
+          label="Equipment"
+          rules={[{ required: true, message: 'Please select equipment' }]}
         >
-          <Form.Item
-            name="equipment_id"
-            label="Equipment"
-            rules={[{ required: true, message: 'Please select equipment' }]}
-          >
-            <Select placeholder="Select equipment">
-              {equipments.map(equipment => (
-                <Select.Option 
-                  key={equipment.equipment_id} 
-                  value={equipment.equipment_id}
-                >
-                  {equipment.equipment_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+          <Select placeholder="Select equipment">
+            {equipments.map(equipment => (
+              <Select.Option 
+                key={equipment.equipment_id} 
+                value={equipment.equipment_id}
+              >
+                {equipment.equipment_name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-          <Form.Item
-            name="amcprovider_id"
-            label="AMC Provider"
-            rules={[{ required: true, message: 'Please select provider' }]}
-          >
-            <Select placeholder="Select provider">
-              {providers.map(provider => (
-                <Select.Option 
-                  key={provider.amcprovider_id} 
-                  value={provider.amcprovider_id}
-                >
-                  {provider.amcprovider_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+        <Form.Item
+          name="amcprovider_id"
+          label="AMC Provider"
+          rules={[{ required: true, message: 'Please select provider' }]}
+        >
+          <Select placeholder="Select provider">
+            {providers.map(provider => (
+              <Select.Option 
+                key={provider.amcprovider_id} 
+                value={provider.amcprovider_id}
+              >
+                {provider.amcprovider_name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-          <Form.Item
-            name="contract_period"
-            label="Contract Period"
-            rules={[{ required: true, message: 'Please select contract period' }]}
-          >
-            <RangePicker style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="amc_value"
-            label="AMC Value"
-            rules={[
-              { required: true, message: 'Please enter AMC value' },
-              { 
-                validator: async (_, value) => {
-                  const numValue = parseFloat(value);
-                  if (isNaN(numValue) || numValue <= 0) {
-                    throw new Error('Value must be greater than 0');
+        <Form.Item
+          name="contract_period"
+          label="Contract Period"
+          rules={[
+            { required: true, message: 'Please select contract period' },
+            {
+              validator: async (_, value) => {
+                if (value && value[0] && value[1]) {
+                  const start = dayjs(value[0]);
+                  const end = dayjs(value[1]);
+                  if (start.isSame(end) || start.isAfter(end)) {
+                    throw new Error('End date must be after start date');
                   }
                 }
               }
-            ]}
-          >
-            <Input type="number" prefix="₹" min="0" step="0.01" />
-          </Form.Item>
+            }
+          ]}
+        >
+          <RangePicker style={{ width: '100%' }} />
+        </Form.Item>
 
-          <Form.Item
-            name="remarks"
-            label="Remarks"
-          >
-            <Input.TextArea rows={4} />
-          </Form.Item>
+        <Form.Item
+          name="amc_value"
+          label="AMC Value"
+          rules={[
+            { required: true, message: 'Please enter AMC value' },
+            { 
+              validator: async (_, value) => {
+                const numValue = parseFloat(value);
+                if (isNaN(numValue) || numValue <= 0) {
+                  throw new Error('Value must be greater than 0');
+                }
+              }
+            }
+          ]}
+        >
+          <Input type="number" prefix="₹" min="0" step="0.01" />
+        </Form.Item>
 
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                {editingMapping ? 'Update' : 'Add'}
-              </Button>
-              <Button onClick={() => {
-                setIsModalVisible(false);
-                form.resetFields();
-              }}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        <Form.Item
+          name="remarks"
+          label="Remarks"
+        >
+          <Input.TextArea rows={4} />
+        </Form.Item>
+      </FormModal>
     </>
   );
 };

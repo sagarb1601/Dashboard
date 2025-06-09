@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, message, Card, Table, Space, Modal } from 'antd';
+import { Form, Input, Button, message, Card, Table, Space, Modal, Alert, Tooltip, Tag } from 'antd';
 import { EditOutlined, PlusOutlined } from '@ant-design/icons';
 import { IconWrapper } from '../../../utils/IconWrapper';
-import { contractors } from '../../../utils/api';
-import { Contractor, contractorSchema } from '../../../types/contractor';
+import { contractors, mappings } from '../../../utils/api';
+import { Contractor, contractorSchema, ContractorMapping } from '../../../types/contractor';
 import type { TableProps } from 'antd/es/table';
+import { useMappingContext } from '../../../contexts/MappingContext';
 
 const WrappedEditIcon = IconWrapper(EditOutlined);
 const WrappedPlusIcon = IconWrapper(PlusOutlined);
@@ -13,26 +14,51 @@ const ContractorsTab: React.FC = () => {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [contractorsList, setContractorsList] = useState<Contractor[]>([]);
+  const [mappingsList, setMappingsList] = useState<ContractorMapping[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const { mappingVersion } = useMappingContext();
 
-  const fetchContractors = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const { data } = await contractors.getAll();
-      setContractorsList(data);
-    } catch (error) {
-      message.error('Failed to load contractors');
-      console.error(error);
+      const [contractorsRes, mappingsRes] = await Promise.all([
+        contractors.getAll(),
+        mappings.getAll()
+      ]);
+      setContractorsList(contractorsRes.data);
+      setMappingsList(mappingsRes.data);
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      message.error('Failed to fetch data');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchContractors();
-  }, []);
+    fetchData();
+  }, [mappingVersion]);
+
+  const getActiveMappingsCount = (contractorId: number) => {
+    return mappingsList.filter(m => 
+      m.contractor_id === contractorId && 
+      m.status === 'ACTIVE'
+    ).length;
+  };
+
+  const getMappingsInfo = (contractorId: number) => {
+    const mappings = mappingsList.filter(m => m.contractor_id === contractorId);
+    const active = mappings.filter(m => m.status === 'ACTIVE').length;
+    const upcoming = mappings.filter(m => m.status === 'UPCOMING').length;
+    const inactive = mappings.filter(m => m.status === 'INACTIVE').length;
+    
+    if (mappings.length === 0) return null;
+    
+    return `Mappings: ${active} Active, ${upcoming} Upcoming, ${inactive} Inactive`;
+  };
 
   const showModal = (contractor?: Contractor) => {
     form.resetFields();
@@ -52,6 +78,7 @@ const ContractorsTab: React.FC = () => {
   };
 
   const onFinish = async (values: any) => {
+    setModalError(null); // Clear previous errors
     try {
       // Validate the data against our schema
       await contractorSchema.validate(values, { abortEarly: false });
@@ -67,12 +94,14 @@ const ContractorsTab: React.FC = () => {
       setIsModalVisible(false);
       form.resetFields();
       setEditingContractor(null);
-      fetchContractors(); // Refresh the table
+      fetchData(); // Refresh the table
     } catch (error: any) {
       if (error.name === 'ValidationError') {
-        message.error(error.errors[0]);
+        setModalError(error.errors[0]);
       } else {
-        message.error(editingContractor ? 'Failed to update contractor' : 'Failed to add contractor');
+        const errorMessage = error.response?.data?.error || 
+          (editingContractor ? 'Failed to update contractor' : 'Failed to add contractor');
+        setModalError(errorMessage);
         console.error('Error:', error);
       }
     } finally {
@@ -86,11 +115,19 @@ const ContractorsTab: React.FC = () => {
       await contractors.delete(contractorId);
       message.success('Contractor deleted successfully');
       console.log('Contractor deleted, fetching updated list...');
-      await fetchContractors();
+      await fetchData();
       console.log('Updated contractors list:', contractorsList);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting contractor:', error);
-      message.error('Failed to delete contractor');
+      if (error.response?.data?.error) {
+        Modal.error({
+          title: 'Cannot Delete Contractor',
+          content: error.response.data.error,
+          okText: 'Got it'
+        });
+      } else {
+        message.error('Failed to delete contractor');
+      }
     }
   };
 
@@ -124,18 +161,70 @@ const ContractorsTab: React.FC = () => {
       ellipsis: true,
     },
     {
+      title: 'Department Mappings',
+      key: 'mappings',
+      render: (_, record) => {
+        const contractorMappings = mappingsList.filter(m => m.contractor_id === record.contractor_id);
+        const active = contractorMappings.filter(m => m.status === 'ACTIVE');
+        const upcoming = contractorMappings.filter(m => m.status === 'UPCOMING');
+        
+        return (
+          <Space direction="vertical" size="small">
+            {active.length > 0 && (
+              <div>
+                <strong>Active:</strong>
+                {active.map(m => (
+                  <Tag color="green" key={m.contract_id}>
+                    {m.department_name}
+                  </Tag>
+                ))}
+              </div>
+            )}
+            {upcoming.length > 0 && (
+              <div>
+                <strong>Upcoming:</strong>
+                {upcoming.map(m => (
+                  <Tag color="blue" key={m.contract_id}>
+                    {m.department_name}
+                  </Tag>
+                ))}
+              </div>
+            )}
+            {contractorMappings.length === 0 && (
+              <span style={{ color: '#999' }}>No mappings</span>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => showModal(record)}>
-            <WrappedEditIcon /> Edit
-          </Button>
-          <Button type="link" danger onClick={() => handleDelete(record.contractor_id)}>
-            Delete
-          </Button>
-        </Space>
-      ),
+      render: (_, record) => {
+        const mappingsInfo = getMappingsInfo(record.contractor_id);
+        const activeMappings = getActiveMappingsCount(record.contractor_id);
+        
+        return (
+          <Space>
+            <Button type="link" onClick={() => showModal(record)}>
+              <WrappedEditIcon /> Edit
+            </Button>
+            <Tooltip title={activeMappings > 0 ? 
+              'Cannot delete contractor with active mappings' : 
+              (mappingsInfo ? mappingsInfo : 'Delete contractor')
+            }>
+              <Button 
+                type="link" 
+                danger 
+                onClick={() => handleDelete(record.contractor_id)}
+                disabled={activeMappings > 0}
+              >
+                Delete
+              </Button>
+            </Tooltip>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -173,6 +262,15 @@ const ContractorsTab: React.FC = () => {
         footer={null}
         maskClosable={false}
       >
+        {modalError && (
+          <Alert
+            message="Error"
+            description={modalError}
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
         <Form
           form={form}
           layout="vertical"

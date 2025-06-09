@@ -15,7 +15,10 @@ const pool = new Pool({
 router.get('/projects', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
-      'SELECT * FROM finance_projects ORDER BY created_at DESC'
+      `SELECT fp.*, tg.group_name 
+       FROM finance_projects fp
+       LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+       ORDER BY fp.created_at DESC`
     );
     res.json(result.rows);
   } catch (error) {
@@ -34,6 +37,7 @@ router.post('/projects', authenticateToken, async (req: Request, res: Response):
     total_value,
     funding_agency,
     duration_years,
+    group_id,
     budget_fields
   } = req.body;
 
@@ -43,8 +47,8 @@ router.post('/projects', authenticateToken, async (req: Request, res: Response):
 
     // Create the project
     const projectResult = await client.query(
-      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years]
+      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id]
     );
 
     const project = projectResult.rows[0];
@@ -73,7 +77,17 @@ router.post('/projects', authenticateToken, async (req: Request, res: Response):
     }
 
     await client.query('COMMIT');
-    res.status(201).json(project);
+
+    // Fetch the complete project with group name
+    const completeProject = await pool.query(
+      `SELECT fp.*, tg.group_name 
+       FROM finance_projects fp
+       LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+       WHERE fp.project_id = $1`,
+      [project.project_id]
+    );
+
+    res.status(201).json(completeProject.rows[0]);
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error creating project:', error);
@@ -88,7 +102,10 @@ router.get('/projects/:id', authenticateToken, async (req: Request, res: Respons
   const { id } = req.params;
   try {
     const result = await pool.query(
-      'SELECT * FROM finance_projects WHERE project_id = $1',
+      `SELECT fp.*, tg.group_name 
+       FROM finance_projects fp
+       LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+       WHERE fp.project_id = $1`,
       [id]
     );
     if (result.rows.length === 0) {
@@ -113,13 +130,24 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
     total_value,
     funding_agency,
     duration_years,
+    group_id,
     budget_fields
   } = req.body;
 
   try {
     const result = await pool.query(
-      'UPDATE finance_projects SET project_name = $1, start_date = $2, end_date = $3, extension_end_date = $4, total_value = $5, funding_agency = $6, duration_years = $7 WHERE project_id = $8 RETURNING *',
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, id]
+      `UPDATE finance_projects 
+       SET project_name = $1, 
+           start_date = $2, 
+           end_date = $3, 
+           extension_end_date = $4, 
+           total_value = $5, 
+           funding_agency = $6, 
+           duration_years = $7,
+           group_id = $8 
+       WHERE project_id = $9 
+       RETURNING *`,
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, id]
     );
 
     if (result.rows.length === 0) {
@@ -141,7 +169,16 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
       }
     }
 
-    res.json(result.rows[0]);
+    // Fetch the complete project with group name
+    const completeProject = await pool.query(
+      `SELECT fp.*, tg.group_name 
+       FROM finance_projects fp
+       LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+       WHERE fp.project_id = $1`,
+      [id]
+    );
+
+    res.json(completeProject.rows[0]);
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ error: 'Internal server error' });

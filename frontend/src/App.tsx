@@ -33,6 +33,12 @@ import { ConfigProvider } from 'antd';
 import './index.css';
 import BDServices from './pages/business/BDServices';
 import BDProjects from './pages/business/BDProjects';
+import GroupProjects from './pages/technical/GroupProjects';
+import ProjectStatus from './pages/technical/ProjectStatus';
+import Events from './pages/technical/Events';
+import Publications from './pages/technical/Publications';
+import PiCopi from './pages/technical/PiCopi';
+import Agreements from './pages/business/Agreements';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -53,6 +59,7 @@ export const getUserHomePath = (role: string): string => {
     case 'admin': return '/admin/contractors';
     case 'acts': return '/acts/courses';
     case 'bd': return '/business/clients';
+    case 'tg': return '/technical/project-status';
     default: return '/welcome';
   }
 };
@@ -411,6 +418,55 @@ const App: React.FC = () => {
               <ProtectedRoute requireRole="bd">
                 <DashboardLayout>
                   <BDServices />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/business/agreements" element={
+              <ProtectedRoute requireRole="bd">
+                <DashboardLayout>
+                  <Agreements />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+
+            {/* Technical Group routes */}
+            <Route path="/technical/projects" element={
+              <ProtectedRoute requireRole="tg">
+                <DashboardLayout>
+                  <GroupProjects />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/technical" element={
+              <ProtectedRoute requireRole="tg">
+                <Navigate to="/technical/projects" replace />
+              </ProtectedRoute>
+            } />
+            <Route path="/technical/project-status" element={
+              <ProtectedRoute requireRole="tg">
+                <DashboardLayout>
+                  <ProjectStatus />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/technical/events" element={
+              <ProtectedRoute requireRole="tg">
+                <DashboardLayout>
+                  <Events />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/technical/publications" element={
+              <ProtectedRoute requireRole="tg">
+                <DashboardLayout>
+                  <Publications />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+            <Route path="/technical/pi-copi" element={
+              <ProtectedRoute requireRole="tg">
+                <DashboardLayout>
+                  <PiCopi />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

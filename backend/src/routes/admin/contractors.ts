@@ -67,29 +67,47 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
   console.log(`PUT /admin/contractors/${id} - Updating contractor:`, { contractor_company_name, contact_person });
   
   try {
-    const result = await pool.query(
-      `UPDATE admin_contractors 
-       SET contractor_company_name = COALESCE($1, contractor_company_name),
-           contact_person = COALESCE($2, contact_person),
-           phone = COALESCE($3, phone),
-           email = $4,
-           address = $5
-       WHERE contractor_id = $6 
-       RETURNING *`,
-      [contractor_company_name, contact_person, phone, email, address, id]
+    // First check if the contractor exists
+    const checkResult = await pool.query(
+      'SELECT * FROM admin_contractors WHERE contractor_id = $1',
+      [id]
     );
-    
-    if (result.rows.length === 0) {
+
+    if (checkResult.rows.length === 0) {
       console.log('Contractor not found:', id);
       res.status(404).json({ error: 'Contractor not found' });
       return;
     }
+
+    // Validate required fields
+    if (!contractor_company_name || !contact_person || !phone) {
+      res.status(400).json({ error: 'Company name, contact person, and phone are required' });
+      return;
+    }
+
+    // Update with new values
+    const result = await pool.query(
+      `UPDATE admin_contractors 
+       SET contractor_company_name = $1,
+           contact_person = $2,
+           phone = $3,
+           email = $4,
+           address = $5
+       WHERE contractor_id = $6 
+       RETURNING *`,
+      [contractor_company_name, contact_person, phone, email || null, address || null, id]
+    );
     
     console.log('Contractor updated:', result.rows[0]);
     res.json(result.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating contractor:', error);
-    res.status(500).json({ error: 'Failed to update contractor' });
+    // Check for specific database errors
+    if (error.code === '23505') { // Unique violation
+      res.status(400).json({ error: 'A contractor with this company name already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to update contractor. Please try again.' });
+    }
   }
 });
 
@@ -99,6 +117,22 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
   console.log(`DELETE /admin/contractors/${id} - Deleting contractor`);
   
   try {
+    // First check for active mappings
+    const mappingsResult = await pool.query(`
+      SELECT COUNT(*) 
+      FROM admin_contractor_department_mapping m
+      WHERE m.contractor_id = $1
+      AND CURRENT_DATE BETWEEN m.start_date AND m.end_date
+    `, [id]);
+    
+    if (parseInt(mappingsResult.rows[0].count) > 0) {
+      res.status(400).json({ 
+        error: 'Cannot delete contractor with active mappings. Please delete or wait for all mappings to expire before deleting the contractor.' 
+      });
+      return;
+    }
+
+    // If no active mappings, proceed with deletion
     const result = await pool.query(
       'DELETE FROM admin_contractors WHERE contractor_id = $1 RETURNING *',
       [id]
@@ -248,6 +282,45 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response): Promi
   } catch (error) {
     console.error('Error fetching contractor:', error);
     res.status(500).json({ error: 'Failed to fetch contractor' });
+  }
+});
+
+// Update contractor mapping
+router.put('/mappings/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { contractor_id, department_id, start_date, end_date } = req.body;
+  console.log(`PUT /admin/contractors/mappings/${id} - Updating mapping:`, { contractor_id, department_id, start_date, end_date });
+
+  try {
+    // First check if the mapping exists
+    const checkResult = await pool.query(
+      'SELECT * FROM admin_contractor_department_mapping WHERE contract_id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      console.log('Mapping not found:', id);
+      res.status(404).json({ error: 'Mapping not found' });
+      return;
+    }
+
+    // Update the mapping
+    const result = await pool.query(
+      `UPDATE admin_contractor_department_mapping 
+       SET contractor_id = $1,
+           department_id = $2,
+           start_date = $3,
+           end_date = $4
+       WHERE contract_id = $5 
+       RETURNING *`,
+      [contractor_id, department_id, start_date, end_date, id]
+    );
+
+    console.log('Mapping updated:', result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating mapping:', error);
+    res.status(500).json({ error: 'Failed to update mapping' });
   }
 });
 

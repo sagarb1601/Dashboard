@@ -106,22 +106,45 @@ router.delete('/providers/:id', authenticateToken, async (req: Request, res: Res
   const id = parseInt(req.params.id);
   console.log(`DELETE /providers/${id} - Deleting provider`);
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // Check for existing mappings
+    const mappingsResult = await client.query(
+      'SELECT * FROM amc_contracts WHERE amcprovider_id = $1',
+      [id]
+    );
+
+    if (mappingsResult.rows.length > 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ 
+        message: 'Cannot delete provider with existing contracts. Please delete all associated contracts first.',
+        contracts: mappingsResult.rows.length
+      });
+      return;
+    }
+
+    const result = await client.query(
       'DELETE FROM amc_providers WHERE amcprovider_id = $1 RETURNING *',
       [id]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ message: 'Provider not found' });
       return;
     }
 
+    await client.query('COMMIT');
     console.log('Provider deleted:', result.rows[0]);
     res.json({ message: 'Provider deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error deleting provider:', err);
     res.status(500).json({ message: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -295,7 +318,7 @@ async function safeDeleteContract(
   }
 }
 
-// Modify the delete endpoint with more logging
+// Delete AMC contract
 router.delete('/contracts/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
   console.log('\n=== DELETE CONTRACT REQUEST ===');
@@ -321,33 +344,19 @@ router.delete('/contracts/:id', authenticateToken, async (req: Request, res: Res
       return;
     }
 
-    // Set foreign key references to NULL first
-    await client.query(
-      'UPDATE amc_contracts SET equipment_id = NULL, amcprovider_id = NULL WHERE amccontract_id = $1',
-      [contractId]
-    );
-
-    // Then delete the contract
-    const deleteResult = await client.query(
+    // Delete the contract
+    const result = await client.query(
       'DELETE FROM amc_contracts WHERE amccontract_id = $1 RETURNING *',
       [contractId]
     );
 
-    // Commit transaction
     await client.query('COMMIT');
-    
-    console.log('Successfully deleted contract');
-    res.json({ 
-      message: 'Contract deleted successfully',
-      deletedId: contractId
-    });
-  } catch (error: any) {
+    console.log('Contract deleted:', result.rows[0]);
+    res.json({ message: 'Contract deleted successfully' });
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Error in delete endpoint:', error);
-    res.status(500).json({ 
-      message: 'Error deleting contract',
-      error: error.message
-    });
+    console.error('Error deleting contract:', err);
+    res.status(500).json({ message: 'Server error' });
   } finally {
     client.release();
   }

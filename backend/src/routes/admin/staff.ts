@@ -202,6 +202,21 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
   const { id } = req.params;
   
   try {
+    // First check for salary records
+    const salaryResult = await pool.query(`
+      SELECT COUNT(*) 
+      FROM admin_staff_salaries 
+      WHERE staff_id = $1
+    `, [id]);
+    
+    if (parseInt(salaryResult.rows[0].count) > 0) {
+      res.status(400).json({ 
+        error: 'Cannot delete staff member with salary records. Please delete all salary records first.' 
+      });
+      return;
+    }
+
+    // If no salary records, proceed with deletion
     const result = await pool.query(
       'DELETE FROM admin_staff WHERE staff_id = $1 RETURNING *',
       [id]
@@ -214,7 +229,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
     
     res.json({ message: 'Staff member deleted successfully' });
   } catch (error) {
-    console.error('Error deleting staff:', error);
+    console.error('Error deleting staff member:', error);
     res.status(500).json({ error: 'Failed to delete staff member' });
   }
 });

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Form, message, Input, InputNumber, Button, Select, DatePicker, Modal, Table, Space } from 'antd';
+import type { SelectProps } from 'antd/es/select';
+import type { DatePickerProps } from 'antd/es/date-picker';
+import type { ButtonProps } from 'antd/es/button';
 import api from '../../../utils/api';
 import dayjs from 'dayjs';
+import type { Moment } from 'moment';
 
 interface Employee {
   employee_id: number;
@@ -38,8 +42,8 @@ const Promotions: React.FC = () => {
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [dateConstraints, setDateConstraints] = useState<{
-    minDate?: Date;
-    maxDate?: Date;
+    minDate?: string;
+    maxDate?: string;
   }>({});
 
   const fetchEmployees = async () => {
@@ -95,18 +99,18 @@ const Promotions: React.FC = () => {
     // Get employee's promotions to find date constraints
     const employeePromotions = promotions
       .filter(p => p.employee_id === employeeId)
-      .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
+      .sort((a, b) => dayjs(a.effective_date).valueOf() - dayjs(b.effective_date).valueOf());
 
     if (employeePromotions.length > 0) {
       // Latest promotion's date becomes the minimum date for new promotion
       setDateConstraints({
-        minDate: new Date(employeePromotions[employeePromotions.length - 1].effective_date)
+        minDate: employeePromotions[employeePromotions.length - 1].effective_date
       });
     } else {
       // For first promotion, minimum date is employee's join date
       const employeeDetails = await api.get(`/hr/employees/${employeeId}`);
       setDateConstraints({
-        minDate: new Date(employeeDetails.data.join_date)
+        minDate: employeeDetails.data.join_date
       });
     }
   };
@@ -117,17 +121,17 @@ const Promotions: React.FC = () => {
     // Find date constraints for this promotion
     const employeePromotions = promotions
       .filter(p => p.employee_id === record.employee_id)
-      .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
+      .sort((a, b) => dayjs(a.effective_date).valueOf() - dayjs(b.effective_date).valueOf());
     
     const currentIndex = employeePromotions.findIndex(p => p.id === record.id);
-    const constraints: { minDate?: Date; maxDate?: Date } = {};
+    const constraints: { minDate?: string; maxDate?: string } = {};
     
     if (currentIndex > 0) {
-      constraints.minDate = new Date(employeePromotions[currentIndex - 1].effective_date);
+      constraints.minDate = employeePromotions[currentIndex - 1].effective_date;
     }
     
     if (currentIndex < employeePromotions.length - 1) {
-      constraints.maxDate = new Date(employeePromotions[currentIndex + 1].effective_date);
+      constraints.maxDate = employeePromotions[currentIndex + 1].effective_date;
     }
     
     setDateConstraints(constraints);
@@ -158,7 +162,7 @@ const Promotions: React.FC = () => {
       setLoading(true);
       const postData = {
         ...values,
-        effective_date: values.effective_date.format('YYYY-MM-DD')
+        effective_date: dayjs(values.effective_date.valueOf()).format('YYYY-MM-DD')
       };
       
       if (editingPromotion) {
@@ -176,7 +180,7 @@ const Promotions: React.FC = () => {
         // For new promotion
         const employeePromotions = promotions
           .filter(p => p.employee_id === values.employee_id)
-          .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
+          .sort((a, b) => dayjs(a.effective_date).valueOf() - dayjs(b.effective_date).valueOf());
 
         let from_designation_id;
         if (employeePromotions.length > 0) {
@@ -198,21 +202,14 @@ const Promotions: React.FC = () => {
           message.success('Promotion added successfully');
           form.resetFields();
           setOpen(false);
+          setEditingPromotion(null);
           setSelectedEmployee(null);
           fetchPromotions();
         }
       }
     } catch (error: any) {
-      console.error('Error saving promotion:', error);
-      let errorMessage = 'An error occurred';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.status === 400) {
-        errorMessage = 'Invalid promotion data. Please check the dates and designations.';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Server error - Please check promotion dates and designation chain.';
-      }
-      message.error(errorMessage);
+      console.error('Error saving promotion record:', error);
+      message.error(error.response?.data?.message || `Failed to ${editingPromotion ? 'update' : 'add'} promotion record`);
     } finally {
       setLoading(false);
     }
@@ -402,11 +399,13 @@ const Promotions: React.FC = () => {
           >
             <DatePicker 
               style={{ width: '100%' }}
-              disabledDate={(current) => {
-                if (dateConstraints.minDate && current < dayjs(dateConstraints.minDate)) {
+              disabledDate={(current: Moment) => {
+                if (!current) return false;
+                const currentDate = dayjs(current.valueOf());
+                if (dateConstraints.minDate && currentDate.isBefore(dayjs(dateConstraints.minDate))) {
                   return true;
                 }
-                if (dateConstraints.maxDate && current > dayjs(dateConstraints.maxDate)) {
+                if (dateConstraints.maxDate && currentDate.isAfter(dayjs(dateConstraints.maxDate))) {
                   return true;
                 }
                 return false;

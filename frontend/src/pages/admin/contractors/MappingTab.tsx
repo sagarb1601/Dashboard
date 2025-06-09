@@ -7,11 +7,22 @@ import type { Dayjs } from 'dayjs';
 import type { Rule } from 'antd/es/form';
 import type { DatePickerProps } from 'antd/es/date-picker';
 import dayjs from 'dayjs';
+import weekday from 'dayjs/plugin/weekday';
+import localeData from 'dayjs/plugin/localeData';
 import { contractors, departments, mappings } from '../../../utils/api';
 import { Contractor, Department, ContractorMapping, mappingSchema } from '../../../types/contractor';
 import type { SelectProps } from 'antd/es/select';
 import { useNavigate } from 'react-router-dom';
 import { IconWrapper } from '../../../utils/IconWrapper';
+import moment from 'moment';
+import { useMappingContext } from '../../../contexts/MappingContext';
+import ActionButtons from '../../../components/common/ActionButtons';
+import FormModal from '../../../components/common/FormModal';
+import type { ColumnsType } from 'antd/es/table';
+
+// Configure dayjs plugins
+dayjs.extend(weekday);
+dayjs.extend(localeData);
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -66,6 +77,20 @@ const MappingTab: React.FC = () => {
   const [editingMapping, setEditingMapping] = useState<ContractorMapping | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const navigate = useNavigate();
+  const { refreshMappings } = useMappingContext();
+  const [error, setError] = useState<string | null>(null);
+
+  const dateFormat = 'YYYY-MM-DD';
+
+  const disabledDate = (current: any) => {
+    // Allow all dates
+    return false;
+  };
+
+  const disabledEndDate = (current: any) => {
+    const startDate = form.getFieldValue('start_date');
+    return startDate && current && current < startDate;
+  };
 
   // Fetch initial data
   const fetchData = async () => {
@@ -156,11 +181,17 @@ const MappingTab: React.FC = () => {
     setSelectedDepartment(null);
   };
 
-  const handleDelete = async (contractId: number) => {
+  const handleDelete = async (record: ContractorMapping) => {
+    if (!isContractActive(record)) {
+      message.error('Cannot delete inactive contract mappings');
+      return;
+    }
+
     try {
-      await mappings.delete(contractId);
+      await mappings.delete(record.contract_id);
       message.success('Mapping deleted successfully');
-      fetchData();
+      await fetchData();
+      refreshMappings();
     } catch (error) {
       message.error('Failed to delete mapping');
       console.error('Error deleting mapping:', error);
@@ -191,7 +222,9 @@ const MappingTab: React.FC = () => {
       const isDuplicate = 
         Number(mapping.contractor_id) === Number(values.contractor_id) && 
         Number(mapping.department_id) === Number(values.department_id) &&
-        mapping.status !== 'INACTIVE';
+        mapping.status !== 'INACTIVE' &&
+        // Exclude the current mapping being edited
+        (!editingMapping || mapping.contract_id !== editingMapping.contract_id);
       
       if (isDuplicate) {
         console.log('Found duplicate mapping:', mapping);
@@ -207,44 +240,32 @@ const MappingTab: React.FC = () => {
     return null;
   };
 
-  const onFinish = async (values: FormData) => {
+  const onFinish = async (values: any) => {
     try {
-      if (!values.start_date || !values.end_date) {
-        message.error('Please select both start and end dates');
-        return;
-      }
-
-      const formattedValues = {
+      setSubmitting(true);
+      const formattedData: ContractorMappingCreate = {
         contractor_id: values.contractor_id,
         department_id: values.department_id,
-        start_date: values.start_date.format('YYYY-MM-DD'),
-        end_date: values.end_date.format('YYYY-MM-DD'),
+        start_date: values.contract_period[0].format('YYYY-MM-DD'),
+        end_date: values.contract_period[1].format('YYYY-MM-DD'),
       };
 
-      setSubmitting(true);
-
       if (editingMapping) {
-        // Update existing mapping
-        await mappings.update(editingMapping.contract_id, formattedValues);
-        message.success('Department mapping updated successfully');
+        await mappings.update(editingMapping.contract_id, formattedData);
+        message.success('Mapping updated successfully');
       } else {
-        // Create new mapping
-        await mappings.create(formattedValues);
-        message.success('Department mapping added successfully');
+        await mappings.create(formattedData);
+        message.success('Mapping created successfully');
       }
 
       setIsModalVisible(false);
-      setEditingMapping(null);
       form.resetFields();
-      fetchData();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to save mapping';
-      if (errorMessage.includes('Date range overlaps')) {
-        message.error('This department already has a contract during the selected date range. Please choose different dates.');
-      } else {
-        message.error(errorMessage);
-      }
+      setEditingMapping(null);
+      await fetchData();
+      refreshMappings();
+    } catch (error) {
       console.error('Error saving mapping:', error);
+      message.error('Failed to save mapping');
     } finally {
       setSubmitting(false);
     }
@@ -272,9 +293,15 @@ const MappingTab: React.FC = () => {
     return contractor ? contractor.contractor_company_name : 'Unknown';
   };
 
-  const columns: TableProps<ContractorMapping>['columns'] = [
+  const isContractActive = (record: ContractorMapping) => {
+    const today = dayjs();
+    const endDate = dayjs(record.end_date);
+    return endDate.isAfter(today);
+  };
+
+  const columns: ColumnsType<ContractorMapping> = [
     {
-      title: 'Company Name',
+      title: 'Contractor',
       dataIndex: 'contractor_company_name',
       key: 'contractor_company_name',
       sorter: (a, b) => a.contractor_company_name.localeCompare(b.contractor_company_name),
@@ -289,45 +316,49 @@ const MappingTab: React.FC = () => {
       title: 'Start Date',
       dataIndex: 'start_date',
       key: 'start_date',
-      render: (date) => dayjs(date).format('DD MMM YYYY'),
+      render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
     },
     {
       title: 'End Date',
       dataIndex: 'end_date',
       key: 'end_date',
-      render: (date) => dayjs(date).format('DD MMM YYYY'),
+      render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
     },
     {
       title: 'Status',
       key: 'status',
-      dataIndex: 'status',
-      render: (status) => (
-        <Tag color={getStatusColor(status)}>
-          {status}
+      render: (_, record: ContractorMapping) => (
+        <Tag color={isContractActive(record) ? 'success' : 'error'}>
+          {isContractActive(record) ? 'Active' : 'Inactive'}
         </Tag>
       ),
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => handleEdit(record)}>
-            Edit
-          </Button>
-          <Button type="link" danger onClick={() => handleDelete(record.contract_id)}>
-            Delete
-          </Button>
-        </Space>
+      render: (_, record: ContractorMapping) => (
+        <ActionButtons
+          onEdit={() => {
+            setEditingMapping(record);
+            form.setFieldsValue({
+              contractor_id: record.contractor_id,
+              department_id: record.department_id,
+              contract_period: [
+                dayjs(record.start_date),
+                dayjs(record.end_date)
+              ]
+            });
+            setError(null);
+            setIsModalVisible(true);
+          }}
+          onDelete={() => handleDelete(record)}
+          deleteDisabled={!isContractActive(record)}
+          deleteTooltip="Only active contract mappings can be deleted"
+          recordName={`${record.contractor_company_name} - ${record.department_name}`}
+        />
       ),
     },
   ];
-
-  const disabledEndDate: DatePickerProps['disabledDate'] = (current) => {
-    if (!current) return false;
-    const startDate = form.getFieldValue('start_date');
-    return startDate ? current.isBefore(startDate) : false;
-  };
 
   return (
     <Card style={{ textAlign: 'left' }}>
@@ -337,7 +368,11 @@ const MappingTab: React.FC = () => {
           <Button
             type="primary"
             icon={<WrappedPlusOutlined />}
-            onClick={() => showModal(null)}
+            onClick={() => {
+              setEditingMapping(null);
+              form.resetFields();
+              setIsModalVisible(true);
+            }}
           >
             Add Mapping
           </Button>
@@ -345,144 +380,117 @@ const MappingTab: React.FC = () => {
 
         <Table
           loading={loading}
-          columns={[
-            {
-              title: 'Department',
-              dataIndex: 'department_id',
-              key: 'department',
-              render: (departmentId) => {
-                const dept = departmentsList.find(d => d.department_id === departmentId);
-                return dept ? dept.department_name : 'Unknown';
-              },
-            },
-            {
-              title: 'Contractor',
-              dataIndex: 'contractor_id',
-              key: 'contractor',
-              render: (contractorId) => getContractorName(contractorId),
-            },
-            {
-              title: 'Start Date',
-              dataIndex: 'start_date',
-              key: 'start_date',
-              render: (date) => dayjs(date).format('DD/MM/YYYY'),
-            },
-            {
-              title: 'End Date',
-              dataIndex: 'end_date',
-              key: 'end_date',
-              render: (date) => dayjs(date).format('DD/MM/YYYY'),
-            },
-            {
-              title: 'Status',
-              key: 'status',
-              dataIndex: 'status',
-              render: (status) => (
-                <Tag color={getStatusColor(status)}>
-                  {status}
-                </Tag>
-              ),
-            },
-            {
-              title: 'Actions',
-              key: 'actions',
-              render: (_, record) => (
-                <Space>
-                  <Button type="link" onClick={() => handleEdit(record)}>
-                    Edit
-                  </Button>
-                  <Button type="link" danger onClick={() => handleDelete(record.contract_id)}>
-                    Delete
-                  </Button>
-                </Space>
-              ),
-            },
-          ]}
+          columns={columns}
           dataSource={mappingsList}
           rowKey="contract_id"
         />
       </Space>
 
-      <Modal
-        title={editingMapping ? "Edit Mapping" : "Add New Mapping"}
+      <FormModal
+        title={editingMapping ? 'Edit Contract Mapping' : 'Add Contract Mapping'}
         open={isModalVisible}
-        onCancel={handleCancel}
-        footer={null}
-        destroyOnClose
+        onCancel={() => {
+          setIsModalVisible(false);
+          setEditingMapping(null);
+          form.resetFields();
+          setError(null);
+        }}
+        form={form}
+        onFinish={onFinish}
+        loading={submitting}
+        error={error}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
+        <Form.Item
+          name="contractor_id"
+          label="Select Contractor"
+          rules={[
+            { required: true, message: 'Please select a contractor' },
+            {
+              validator: async (_, value) => {
+                if (!value) return Promise.resolve();
+                const department_id = form.getFieldValue('department_id');
+                if (!department_id) return Promise.resolve();
+                
+                const validationError = validateMapping({ department_id, contractor_id: value });
+                if (validationError) {
+                  return Promise.reject(validationError);
+                }
+                return Promise.resolve();
+              }
+            }
+          ]}
         >
-          <Form.Item
-            name="department_id"
-            label="Select Department"
-            rules={[{ required: true, message: 'Please select a department' }]}
-          >
-            <Select
-              showSearch
-              placeholder="Select a department"
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          <Select
+            showSearch
+            placeholder="Select a contractor"
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={contractorsList.map(c => ({
+              value: c.contractor_id,
+              label: c.contractor_company_name
+            }))}
+            disabled={!!editingMapping}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="department_id"
+          label="Select Department"
+          rules={[
+            { required: true, message: 'Please select a department' },
+            {
+              validator: async (_, value) => {
+                if (!value) return Promise.resolve();
+                const contractor_id = form.getFieldValue('contractor_id');
+                if (!contractor_id) return Promise.resolve();
+                
+                const validationError = validateMapping({ department_id: value, contractor_id });
+                if (validationError) {
+                  return Promise.reject(validationError);
+                }
+                return Promise.resolve();
               }
-              options={departmentsList.map(d => ({
-                value: d.department_id,
-                label: d.department_name
-              }))}
-              disabled={!!editingMapping}
-            />
-          </Form.Item>
+            }
+          ]}
+        >
+          <Select
+            showSearch
+            placeholder="Select a department"
+            optionFilterProp="children"
+            filterOption={(input, option) =>
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+            options={departmentsList.map(d => ({
+              value: d.department_id,
+              label: d.department_name
+            }))}
+            disabled={!!editingMapping}
+          />
+        </Form.Item>
 
-          <Form.Item
-            name="contractor_id"
-            label="Select Contractor"
-            rules={[{ required: true, message: 'Please select a contractor' }]}
-          >
-            <Select
-              showSearch
-              placeholder="Select a contractor"
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+        <Form.Item
+          name="contract_period"
+          label="Contract Period"
+          rules={[
+            { required: true, message: 'Please select contract period' },
+            {
+              validator: async (_, value) => {
+                if (value && value[0] && value[1]) {
+                  const start = dayjs(value[0]);
+                  const end = dayjs(value[1]);
+                  if (start.isSame(end) || start.isAfter(end)) {
+                    throw new Error('End date must be after start date');
+                  }
+                }
               }
-              options={contractorsList.map(c => ({
-                value: c.contractor_id,
-                label: c.contractor_company_name
-              }))}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="start_date"
-            label="Start Date"
-            rules={[{ required: true, message: 'Please select start date' }]}
-          >
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-
-          <Form.Item
-            name="end_date"
-            label="End Date"
-            rules={[{ required: true, message: 'Please select end date' }]}
-          >
-            <DatePicker 
-              style={{ width: '100%' }}
-              disabledDate={disabledEndDate}
-            />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={submitting}>
-                {editingMapping ? 'Update' : 'Add'} Mapping
-              </Button>
-              <Button onClick={handleCancel}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+            }
+          ]}
+        >
+          <DatePicker.RangePicker style={{ width: '100%' }} />
+        </Form.Item>
+      </FormModal>
     </Card>
   );
 };

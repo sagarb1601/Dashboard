@@ -34,7 +34,10 @@ const migrations = [
   '037_fix_purchase_orders.sql',
   '039_fix_entity_redundancy.sql',
   '040_fix_services_constraint.sql',
-  '041_rename_bd_projects.sql'
+  '041_rename_bd_projects.sql',
+  '050_simplify_technical_status.sql',
+  '051_fix_technical_status_constraint.sql',
+  '052_add_technical_group_to_finance_projects.sql'
 ];
 
 export async function runMigrations(pool: Pool) {

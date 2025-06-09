@@ -11,9 +11,12 @@ import staffRoutes from './routes/admin/staff';
 import departmentsRoutes from './routes/admin/departments';
 import amcRoutes from './routes/amc';
 import authRoutes from './routes/auth';
-import adminRoutes from './routes/admin';
 import actsRoutes from './routes/acts';
 import hrRoutes from './routes/hr';
+import projectStatusRouter from './routes/projectStatus';
+import projectEventsRouter from './routes/projectEvents';
+import projectPublicationsRouter from './routes/projectPublications';
+import piCopiRouter from './routes/technical/piCopi';
 
 const app = express();
 
@@ -41,6 +44,7 @@ app.use((req, res, next) => {
 });
 
 // Register routes
+console.log('Registering routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/finance', authenticateToken, financeRoutes);
 app.use('/api/expenditure', authenticateToken, expenditureRoutes);
@@ -48,9 +52,12 @@ app.use('/api/admin', contractorRoutes);
 app.use('/api/admin', staffRoutes);
 app.use('/api/admin', departmentsRoutes);
 app.use('/api/amc', authenticateToken, amcRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/acts', authenticateToken, actsRoutes);
 app.use('/api/hr', authenticateToken, hrRoutes);
+app.use('/api/project-status', authenticateToken, projectStatusRouter);
+app.use('/api/project-events', authenticateToken, projectEventsRouter);
+app.use('/api/project-publications', authenticateToken, projectPublicationsRouter);
+app.use('/api/technical/pi-copi', authenticateToken, piCopiRouter);
 
 // Login endpoint
 app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {

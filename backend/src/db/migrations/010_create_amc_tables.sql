@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS amc_providers (
 -- Create amc_contracts table
 CREATE TABLE IF NOT EXISTS amc_contracts (
     amccontract_id SERIAL PRIMARY KEY,
-    equipment_id INTEGER REFERENCES admin_equipments(equipment_id),
-    amcprovider_id INTEGER REFERENCES amc_providers(amcprovider_id),
+    equipment_id INTEGER REFERENCES admin_equipments(equipment_id) ON DELETE CASCADE,
+    amcprovider_id INTEGER REFERENCES amc_providers(amcprovider_id) ON DELETE CASCADE,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     amc_value DECIMAL(12,2) NOT NULL,

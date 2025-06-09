@@ -13,44 +13,51 @@ const api = axios.create({
   },
 });
 
-// Request interceptor for API calls
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    console.log('API Request:', {
-      method: config.method,
-      url: config.url,
-      data: config.data,
-      headers: config.headers
-    });
-    return config;
-  },
-  (error) => {
-    console.error('API Request Error:', error);
-    return Promise.reject(error);
+// Add request interceptor to include auth token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  console.log('API Request:', {
+    method: config.method,
+    url: config.url,
+    data: config.data,
+    headers: config.headers,
+    baseURL: config.baseURL
+  });
+  return config;
+});
 
-// Response interceptor for API calls
+// Add response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
     console.log('API Response:', {
       url: response.config.url,
       status: response.status,
       data: response.data,
-      headers: response.headers
+      headers: response.headers,
+      config: {
+        baseURL: response.config.baseURL,
+        method: response.config.method
+      }
     });
     return response;
   },
   (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
     console.error('API Error:', {
       url: error.config?.url,
       status: error.response?.status,
       data: error.response?.data || error.message,
-      headers: error.config?.headers
+      headers: error.config?.headers,
+      config: {
+        baseURL: error.config?.baseURL,
+        method: error.config?.method
+      }
     });
     return Promise.reject(error);
   }
@@ -127,6 +134,13 @@ export const vehicles = {
   addInsurance: (data: VehicleInsuranceCreate) => api.post<VehicleInsurance>('/admin/vehicles/insurance', data),
   updateInsurance: (id: number, data: VehicleInsuranceCreate) => api.put<VehicleInsurance>(`/admin/vehicles/insurance/${id}`, data),
   deleteInsurance: (id: number) => api.delete<{ message: string }>(`/admin/vehicles/insurance/${id}`),
+};
+
+export const attrition = {
+  getAll: () => api.get('/hr/services/attrition'),
+  create: (data: any) => api.post('/hr/services/attrition', data),
+  update: (id: number, data: any) => api.put(`/hr/services/attrition/${id}`, data),
+  delete: (id: number) => api.delete(`/hr/services/attrition/${id}`),
 };
 
 export default api; 

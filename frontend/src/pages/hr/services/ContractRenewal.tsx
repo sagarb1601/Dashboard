@@ -56,28 +56,105 @@ const ContractRenewal: React.FC = () => {
     fetchEmployees();
   }, []);
 
+  // Add function to check for overlapping dates
+  const checkForOverlappingDates = (startDate: dayjs.Dayjs, endDate: dayjs.Dayjs, employeeId: number, currentContractId?: number) => {
+    const existingContracts = contracts.filter(c => 
+      c.employee_id === employeeId && 
+      (!currentContractId || c.id !== currentContractId)
+    );
+
+    return existingContracts.some(contract => {
+      const contractStart = dayjs(contract.start_date);
+      const contractEnd = dayjs(contract.end_date);
+      
+      return (
+        (startDate <= contractEnd && endDate >= contractStart) ||
+        (contractStart <= endDate && contractEnd >= startDate)
+      );
+    });
+  };
+
+  // Update form validation
+  const validateDates = {
+    validator: async (_: any, value: any) => {
+      const startDate = form.getFieldValue('start_date');
+      const endDate = form.getFieldValue('end_date');
+      const employeeId = form.getFieldValue('employee_id');
+      
+      if (startDate && endDate) {
+        // Check if end date is before start date
+        if (endDate.isBefore(startDate)) {
+          throw new Error('End date cannot be before start date');
+        }
+
+        // Check for overlapping dates
+        if (employeeId && checkForOverlappingDates(startDate, endDate, employeeId, editingContract?.id)) {
+          throw new Error('Contract dates overlap with an existing contract for this employee');
+        }
+      }
+    }
+  };
+
   const handleSubmit = async (values: any) => {
     try {
       setLoading(true);
+
+      // Additional validation before submission
+      const startDate = values.start_date;
+      const endDate = values.end_date;
+      const employeeId = values.employee_id;
+
+      // Check for overlapping dates
+      if (checkForOverlappingDates(startDate, endDate, employeeId, editingContract?.id)) {
+        message.error('Contract dates overlap with an existing contract for this employee');
+        return;
+      }
+
       const data = {
         ...values,
-        start_date: values.start_date.format('YYYY-MM-DD'),
-        end_date: values.end_date.format('YYYY-MM-DD'),
+        start_date: startDate.format('YYYY-MM-DD'),
+        end_date: endDate.format('YYYY-MM-DD'),
       };
 
       if (editingContract) {
-        await api.put(`/hr/services/contracts/${editingContract.id}`, data);
-        message.success('Contract updated successfully');
+        try {
+          await api.put(`/hr/services/contracts/${editingContract.id}`, data);
+          message.success('Contract updated successfully');
+          setOpen(false);
+          form.resetFields();
+          setEditingContract(null);
+          fetchContracts();
+        } catch (error: any) {
+          if (error.response?.status === 409) {
+            Modal.error({
+              title: 'Contract Overlap Error',
+              content: 'Contract dates overlap with an existing contract for this employee. Please choose different dates.',
+            });
+          } else {
+            throw error;
+          }
+        }
       } else {
-        await api.post('/hr/services/contracts', data);
-        message.success('Contract added successfully');
+        try {
+          await api.post('/hr/services/contracts', data);
+          message.success('Contract added successfully');
+          setOpen(false);
+          form.resetFields();
+          setEditingContract(null);
+          fetchContracts();
+        } catch (error: any) {
+          if (error.response?.status === 409) {
+            Modal.error({
+              title: 'Contract Overlap Error',
+              content: 'Contract dates overlap with an existing contract for this employee. Please choose different dates.',
+            });
+          } else {
+            throw error;
+          }
+        }
       }
-
-      setOpen(false);
-      form.resetFields();
-      setEditingContract(null);
-      fetchContracts();
     } catch (error) {
+      console.error('Failed to save contract:', error);
       message.error('Failed to save contract');
     } finally {
       setLoading(false);
@@ -235,12 +312,12 @@ const ContractRenewal: React.FC = () => {
       )}
 
       <Modal
-        title={editingContract ? 'Edit Contract' : 'Record Contract'}
+        title={editingContract ? 'Edit Contract' : 'New Contract'}
         open={open}
         onCancel={() => {
           setOpen(false);
-          setEditingContract(null);
           form.resetFields();
+          setEditingContract(null);
         }}
         footer={null}
       >
@@ -256,15 +333,12 @@ const ContractRenewal: React.FC = () => {
           >
             <Select
               showSearch
-              placeholder="Select an employee"
-              optionFilterProp="label"
-              disabled={!!editingContract || !!selectedEmployee}
-              filterOption={(input: string, option?: { label: string, value: number }) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
+              placeholder="Select employee"
+              optionFilterProp="children"
+              disabled={!!selectedEmployee}
               options={employees.map(emp => ({
-                label: `${emp.employee_id} - ${emp.employee_name}`,
                 value: emp.employee_id,
+                label: `${emp.employee_id} - ${emp.employee_name}`
               }))}
             />
           </Form.Item>
@@ -283,7 +357,10 @@ const ContractRenewal: React.FC = () => {
           <Form.Item
             name="start_date"
             label="Start Date"
-            rules={[{ required: true, message: 'Please select start date' }]}
+            rules={[
+              { required: true, message: 'Please select start date' },
+              validateDates
+            ]}
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
@@ -291,7 +368,10 @@ const ContractRenewal: React.FC = () => {
           <Form.Item
             name="end_date"
             label="End Date"
-            rules={[{ required: true, message: 'Please select end date' }]}
+            rules={[
+              { required: true, message: 'Please select end date' },
+              validateDates
+            ]}
           >
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>

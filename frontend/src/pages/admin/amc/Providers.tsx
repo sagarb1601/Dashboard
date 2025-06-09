@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   Table,
   Button,
@@ -7,7 +7,8 @@ import {
   Input,
   Space,
   message,
-  Card
+  Card,
+  Tooltip
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../../utils/api';
@@ -19,9 +20,14 @@ interface Provider {
   contact_number: string;
   email: string;
   address: string;
+  hasContracts?: boolean;
 }
 
-const ProvidersComponent: React.FC = () => {
+export interface ProvidersRef {
+  refresh: () => void;
+}
+
+const ProvidersComponent = forwardRef<ProvidersRef>((_, ref) => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
@@ -31,16 +37,31 @@ const ProvidersComponent: React.FC = () => {
   const fetchProviders = async () => {
     try {
       console.log('Fetching providers...');
-      const response = await api.get('/amc/providers');
-      console.log('Providers response:', response.data);
-      if (Array.isArray(response.data)) {
-        setProviders(response.data);
+      // First get all providers
+      const providersResponse = await api.get('/amc/providers');
+      
+      // Then get all contracts to check which providers have mappings
+      const contractsResponse = await api.get('/amc/contracts');
+      
+      if (Array.isArray(providersResponse.data)) {
+        const providerIds = new Set(contractsResponse.data.map((contract: any) => contract.amcprovider_id));
+        
+        const providersWithContractInfo = providersResponse.data.map((provider: Provider) => ({
+          ...provider,
+          hasContracts: providerIds.has(provider.amcprovider_id)
+        }));
+        
+        setProviders(providersWithContractInfo);
       }
     } catch (error) {
       console.error('Failed to fetch providers:', error);
       message.error('Failed to fetch AMC providers');
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    refresh: fetchProviders
+  }));
 
   useEffect(() => {
     fetchProviders();
@@ -66,9 +87,10 @@ const ProvidersComponent: React.FC = () => {
       await api.delete(`/amc/providers/${id}`);
       message.success('Provider deleted successfully');
       fetchProviders();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete provider:', error);
-      message.error('Failed to delete provider');
+      const errorMessage = error.response?.data?.message || 'Failed to delete provider';
+      message.error(errorMessage);
     }
   };
 
@@ -101,6 +123,7 @@ const ProvidersComponent: React.FC = () => {
       title: 'Provider Name',
       dataIndex: 'amcprovider_name',
       key: 'amcprovider_name',
+      sorter: (a, b) => a.amcprovider_name.localeCompare(b.amcprovider_name),
     },
     {
       title: 'Contact Person',
@@ -126,17 +149,34 @@ const ProvidersComponent: React.FC = () => {
     {
       title: 'Actions',
       key: 'actions',
-      render: (record: Provider) => (
+      render: (_, record: Provider) => (
         <Space size="middle">
-          <a onClick={() => handleEdit(record)}>Edit</a>
-          <a onClick={() => {
-            Modal.confirm({
-              title: 'Are you sure you want to delete this provider?',
-              onOk: () => handleDelete(record.amcprovider_id),
-              okText: 'Yes',
-              cancelText: 'No',
-            });
-          }} style={{ color: '#ff4d4f' }}>Delete</a>
+          <Button type="link" onClick={() => handleEdit(record)}>
+            Edit
+          </Button>
+          <Tooltip title={record.hasContracts ? 
+            "Cannot delete provider with existing contracts. Please delete all associated contracts first." : 
+            "Delete this provider"}>
+            <Button
+              type="link"
+              danger
+              disabled={record.hasContracts}
+              onClick={() => {
+                if (!record.hasContracts) {
+                  Modal.confirm({
+                    title: 'Delete Provider',
+                    content: 'Are you sure you want to delete this provider? This action cannot be undone.',
+                    okText: 'Yes, Delete',
+                    okType: 'danger',
+                    cancelText: 'No, Cancel',
+                    onOk: () => handleDelete(record.amcprovider_id)
+                  });
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </Tooltip>
         </Space>
       ),
     },
@@ -236,6 +276,6 @@ const ProvidersComponent: React.FC = () => {
       </Modal>
     </Card>
   );
-};
+});
 
 export default ProvidersComponent; 

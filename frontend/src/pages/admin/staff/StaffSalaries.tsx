@@ -19,6 +19,7 @@ import {
   Chip,
   CircularProgress,
   MenuItem,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -32,6 +33,7 @@ import { format, parseISO } from 'date-fns';
 import { staff, salaries } from '../../../utils/api';
 import { Staff, Salary } from '../../../types/staff';
 import ErrorNotification from '../../../components/ErrorNotification';
+import { useSalaryContext } from '../../../contexts/SalaryContext';
 
 interface FormData {
   staff_id: string;
@@ -55,6 +57,7 @@ const StaffSalaries: React.FC = () => {
   const [editingSalary, setEditingSalary] = useState<Salary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { refreshSalaries } = useSalaryContext();
 
   const fetchData = async () => {
     setLoading(true);
@@ -121,7 +124,8 @@ const StaffSalaries: React.FC = () => {
       }
 
       handleClose();
-      fetchData();
+      await fetchData();
+      refreshSalaries();
     } catch (error) {
       console.error('Error saving salary:', error);
       setError('Failed to save salary record. Please try again.');
@@ -130,12 +134,22 @@ const StaffSalaries: React.FC = () => {
     }
   };
 
-  const handleDelete = async (salaryId: number) => {
+  const isStaffActive = (staffId: number) => {
+    const staffMember = staffList.find(s => s.staff_id === staffId);
+    return staffMember?.status === 'ACTIVE';
+  };
+
+  const handleDelete = async (salaryId: number, staffId: number) => {
+    if (!isStaffActive(staffId)) {
+      return; // Don't allow deletion for inactive staff
+    }
+
     if (window.confirm('Are you sure you want to delete this salary record?')) {
       setLoading(true);
       try {
         await salaries.delete(salaryId);
-        fetchData();
+        await fetchData();
+        refreshSalaries();
       } catch (error) {
         console.error('Error deleting salary:', error);
         setError('Failed to delete salary record. Please try again.');
@@ -148,6 +162,11 @@ const StaffSalaries: React.FC = () => {
   const getStaffName = (staffId: number) => {
     const staffMember = staffList.find(s => s.staff_id === staffId);
     return staffMember ? staffMember.name : 'Unknown';
+  };
+
+  const getStaffStatus = (staffId: number) => {
+    const staffMember = staffList.find(s => s.staff_id === staffId);
+    return staffMember?.status || 'UNKNOWN';
   };
 
   if (loading && !salaryList.length) {
@@ -183,6 +202,7 @@ const StaffSalaries: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Staff Name</TableCell>
+              <TableCell>Staff Status</TableCell>
               <TableCell>Net Salary</TableCell>
               <TableCell>Payment Date</TableCell>
               <TableCell>Status</TableCell>
@@ -190,36 +210,54 @@ const StaffSalaries: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {salaryList.map((salary) => (
-              <TableRow key={salary.salary_id}>
-                <TableCell>{getStaffName(salary.staff_id)}</TableCell>
-                <TableCell>₹{salary.net_salary.toLocaleString()}</TableCell>
-                <TableCell>
-                  {format(parseISO(salary.payment_date), 'dd/MM/yyyy')}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={salary.status}
-                    color={salary.status === 'PAID' ? 'success' : 'warning'}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  <IconButton 
-                    onClick={() => handleOpen(salary)}
-                    disabled={loading}
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton 
-                    onClick={() => handleDelete(salary.salary_id)}
-                    disabled={loading}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
+            {salaryList.map((salary) => {
+              const staffStatus = getStaffStatus(salary.staff_id);
+              return (
+                <TableRow key={salary.salary_id}>
+                  <TableCell>{getStaffName(salary.staff_id)}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={staffStatus}
+                      color={staffStatus === 'ACTIVE' ? 'success' : 'error'}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>₹{salary.net_salary.toLocaleString()}</TableCell>
+                  <TableCell>
+                    {format(parseISO(salary.payment_date), 'dd/MM/yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={salary.status}
+                      color={salary.status === 'PAID' ? 'success' : 'warning'}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <IconButton 
+                      onClick={() => handleOpen(salary)}
+                      disabled={loading}
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <Tooltip title={
+                      !isStaffActive(salary.staff_id)
+                        ? "Cannot delete salary records of inactive staff members"
+                        : "Delete salary record"
+                    }>
+                      <span> {/* Wrapper span to make disabled Tooltip work */}
+                        <IconButton 
+                          onClick={() => handleDelete(salary.salary_id, salary.staff_id)}
+                          disabled={loading || !isStaffActive(salary.staff_id)}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

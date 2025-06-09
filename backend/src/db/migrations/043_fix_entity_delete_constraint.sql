@@ -1,15 +1,42 @@
 -- First remove the CASCADE delete from services table
-ALTER TABLE services DROP CONSTRAINT fk_service_entity;
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_service_entity' 
+        AND table_name = 'services'
+    ) THEN
+        ALTER TABLE services DROP CONSTRAINT fk_service_entity;
+    END IF;
+END $$;
+
 ALTER TABLE services ADD CONSTRAINT fk_service_entity 
     FOREIGN KEY (entity_id) REFERENCES business_entities(id) ON DELETE RESTRICT;
 
 -- Remove CASCADE from products table
-ALTER TABLE products DROP CONSTRAINT fk_product_entity;
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_product_entity' 
+        AND table_name = 'products'
+    ) THEN
+        ALTER TABLE products DROP CONSTRAINT fk_product_entity;
+    END IF;
+END $$;
+
 ALTER TABLE products ADD CONSTRAINT fk_product_entity 
     FOREIGN KEY (entity_id) REFERENCES business_entities(id) ON DELETE RESTRICT;
 
 -- Remove CASCADE from projects table
-ALTER TABLE business_division_projects DROP CONSTRAINT fk_project_entity;
+DO $$ BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'fk_project_entity' 
+        AND table_name = 'business_division_projects'
+    ) THEN
+        ALTER TABLE business_division_projects DROP CONSTRAINT fk_project_entity;
+    END IF;
+END $$;
+
 ALTER TABLE business_division_projects ADD CONSTRAINT fk_project_entity 
     FOREIGN KEY (entity_id) REFERENCES business_entities(id) ON DELETE RESTRICT;
 

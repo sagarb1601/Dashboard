@@ -1,0 +1,15 @@
+.menuContainer :global(.ant-menu-item) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.menuContainer :global(.ant-menu-item-icon) {
+  min-width: 24px !important;
+  margin-right: 8px !important;
+}
+
+.menuContainer :global(.ant-menu-title-content) {
+  flex: 1;
+  margin-inline-start: 0 !important;
+} 

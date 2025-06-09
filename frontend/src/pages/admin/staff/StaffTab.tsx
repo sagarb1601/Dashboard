@@ -31,9 +31,10 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { format, parseISO } from 'date-fns';
-import { staff, departments } from '../../../utils/api';
-import { Staff } from '../../../types/staff';
+import { staff, departments, salaries } from '../../../utils/api';
+import { Staff, Salary } from '../../../types/staff';
 import ErrorNotification from '../../../components/ErrorNotification';
+import { useSalaryContext } from '../../../contexts/SalaryContext';
 
 interface Department {
   department_id: number;
@@ -67,13 +68,16 @@ const StaffTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [staffSalaries, setStaffSalaries] = useState<Record<number, Salary[]>>({});
+  const { salaryVersion } = useSalaryContext();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [staffRes, departmentsRes] = await Promise.all([
+      const [staffRes, departmentsRes, salariesRes] = await Promise.all([
         staff.getAll(),
         departments.getAll(),
+        salaries.getAll(),
       ]);
       
       if (!Array.isArray(departmentsRes.data)) {
@@ -82,6 +86,16 @@ const StaffTab: React.FC = () => {
       
       setStaffList(staffRes.data);
       setDepartmentsList(departmentsRes.data);
+
+      // Group salaries by staff_id
+      const salariesByStaff = salariesRes.data.reduce((acc, salary) => {
+        if (!acc[salary.staff_id]) {
+          acc[salary.staff_id] = [];
+        }
+        acc[salary.staff_id].push(salary);
+        return acc;
+      }, {} as Record<number, Salary[]>);
+      setStaffSalaries(salariesByStaff);
     } catch (error) {
       console.error('Error fetching data:', error);
       if (error instanceof Error) {
@@ -96,7 +110,7 @@ const StaffTab: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [salaryVersion]);
 
   const handleOpen = (staffMember?: Staff) => {
     if (staffMember) {
@@ -174,6 +188,21 @@ const StaffTab: React.FC = () => {
     }
   };
 
+  const hasSalaryRecords = (staffId: number) => {
+    return staffSalaries[staffId]?.length > 0;
+  };
+
+  const getSalaryInfo = (staffId: number) => {
+    const salaries = staffSalaries[staffId] || [];
+    if (salaries.length === 0) return null;
+
+    const latestSalary = salaries.reduce((latest, current) => {
+      return new Date(current.payment_date) > new Date(latest.payment_date) ? current : latest;
+    }, salaries[0]);
+
+    return `Latest salary: ₹${latestSalary.net_salary.toLocaleString()} (${format(parseISO(latestSalary.payment_date), 'dd/MM/yyyy')})`;
+  };
+
   if (loading && !staffList.length) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -212,6 +241,7 @@ const StaffTab: React.FC = () => {
               <TableCell>Joining Date</TableCell>
               <TableCell>Date of Leaving</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Latest Salary</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -237,6 +267,9 @@ const StaffTab: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
+                  {getSalaryInfo(staffMember.staff_id) || '-'}
+                </TableCell>
+                <TableCell>
                   <Tooltip title="Edit">
                     <IconButton 
                       onClick={() => handleOpen(staffMember)}
@@ -245,13 +278,19 @@ const StaffTab: React.FC = () => {
                       <EditIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton 
-                      onClick={() => handleDelete(staffMember.staff_id)}
-                      disabled={loading}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                  <Tooltip title={
+                    hasSalaryRecords(staffMember.staff_id)
+                      ? "Cannot delete staff member with salary records"
+                      : "Delete staff member"
+                  }>
+                    <span>
+                      <IconButton 
+                        onClick={() => handleDelete(staffMember.staff_id)}
+                        disabled={loading || hasSalaryRecords(staffMember.staff_id)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </span>
                   </Tooltip>
                 </TableCell>
               </TableRow>

@@ -8,7 +8,8 @@ import {
   Space,
   message,
   Select,
-  Tooltip
+  Tooltip,
+  Popconfirm
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { vehicles } from '../../../utils/api';
@@ -16,6 +17,8 @@ import type { Vehicle, VehicleCreate } from '../../../types/vehicles';
 import dayjs from 'dayjs';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { VEHICLE_COMPANIES } from '../../../constants/vehicles';
+import ActionButtons from '../../../components/common/ActionButtons';
+import FormModal from '../../../components/common/FormModal';
 
 const VehiclesTab: React.FC = () => {
   const [vehiclesList, setVehiclesList] = useState<Vehicle[]>([]);
@@ -23,6 +26,7 @@ const VehiclesTab: React.FC = () => {
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   const [vehiclesWithRecords, setVehiclesWithRecords] = useState<Set<number>>(new Set());
 
@@ -79,18 +83,23 @@ const VehiclesTab: React.FC = () => {
 
   const handleAdd = () => {
     setEditingVehicle(null);
+    setSelectedCompany(null);
     form.resetFields();
+    setError(null);
     setIsModalVisible(true);
   };
 
   const handleEdit = (record: Vehicle) => {
     setEditingVehicle(record);
+    setSelectedCompany(record.company_name);
     form.setFieldsValue(record);
+    setError(null);
     setIsModalVisible(true);
   };
 
   const handleSubmit = async (values: VehicleCreate) => {
     setLoading(true);
+    setError(null);
     try {
       if (editingVehicle) {
         await vehicles.update(editingVehicle.vehicle_id, values);
@@ -103,8 +112,7 @@ const VehiclesTab: React.FC = () => {
       form.resetFields();
       fetchVehicles();
     } catch (error: any) {
-      console.error('Failed to save vehicle:', error);
-      message.error(error.response?.data?.message || 'Failed to save vehicle');
+      setError(error.response?.data?.message || 'Failed to save vehicle');
     } finally {
       setLoading(false);
     }
@@ -115,52 +123,20 @@ const VehiclesTab: React.FC = () => {
     form.setFieldsValue({ model: undefined }); // Reset model when company changes
   };
 
-  const handleDelete = async (record: Vehicle) => {
-    Modal.confirm({
-      title: 'Delete Vehicle',
-      content: (
-        <div>
-          <p>Are you sure you want to delete {record.company_name} - {record.model}?</p>
-        </div>
-      ),
-      okText: 'Yes, Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      centered: true,
-      width: 450,
-      onOk: async () => {
-        try {
-          // Double check for records
-          const hasRecords = await checkVehicleRecords(record.vehicle_id);
-          if (hasRecords) {
-            Modal.error({
-              title: 'Cannot Delete Vehicle',
-              content: 'This vehicle has active insurance or servicing records. Please delete those records first.',
-              width: 450,
-              maskClosable: true,
-              centered: true,
-              okText: 'Close'
-            });
-            return Promise.reject();
-          }
-
-          await vehicles.delete(record.vehicle_id);
-          message.success('Vehicle deleted successfully');
-          await fetchVehicles(); // Refresh the list after deletion
-        } catch (error: any) {
-          console.error('Failed to delete vehicle:', error);
-          Modal.error({
-            title: 'Cannot Delete Vehicle',
-            content: error.response?.data?.message || 'Failed to delete vehicle',
-            width: 450,
-            maskClosable: true,
-            centered: true,
-            okText: 'Close'
-          });
-          return Promise.reject();
-        }
+  const handleDelete = async (vehicleId: number) => {
+    try {
+      const hasRecords = await checkVehicleRecords(vehicleId);
+      if (hasRecords) {
+        message.error('Cannot delete vehicle with active insurance or servicing records');
+        return;
       }
-    });
+
+      await vehicles.delete(vehicleId);
+      message.success('Vehicle deleted successfully');
+      fetchVehicles();
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Failed to delete vehicle');
+    }
   };
 
   const columns: ColumnsType<Vehicle> = [
@@ -192,26 +168,13 @@ const VehiclesTab: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => handleEdit(record)}>
-            Edit
-          </Button>
-          {vehiclesWithRecords.has(record.vehicle_id) ? (
-            <Tooltip title="Cannot delete vehicle with active insurance or servicing records">
-              <Button type="link" danger disabled>
-                Delete
-              </Button>
-            </Tooltip>
-          ) : (
-            <Button
-              type="link"
-              danger
-              onClick={() => handleDelete(record)}
-            >
-              Delete
-            </Button>
-          )}
-        </Space>
+        <ActionButtons
+          onEdit={() => handleEdit(record)}
+          onDelete={() => handleDelete(record.vehicle_id)}
+          deleteDisabled={vehiclesWithRecords.has(record.vehicle_id)}
+          deleteTooltip="Cannot delete vehicle that has insurance or servicing history. This preserves the record history."
+          recordName={`${record.company_name} - ${record.model}`}
+        />
       ),
     },
   ];
@@ -232,79 +195,62 @@ const VehiclesTab: React.FC = () => {
         rowKey="vehicle_id"
       />
 
-      <Modal
+      <FormModal
         title={editingVehicle ? 'Edit Vehicle' : 'Add Vehicle'}
         open={isModalVisible}
         onCancel={() => {
           setIsModalVisible(false);
           setSelectedCompany(null);
+          setError(null);
           form.resetFields();
         }}
-        footer={null}
+        form={form}
+        onFinish={handleSubmit}
+        loading={loading}
+        error={error}
       >
-        <Form
-          form={form}
-          onFinish={handleSubmit}
-          layout="vertical"
+        <Form.Item
+          name="company_name"
+          label="Company Name"
+          rules={[{ required: true, message: 'Please select company name' }]}
         >
-          <Form.Item
-            name="company_name"
-            label="Company Name"
-            rules={[{ required: true, message: 'Please select company name' }]}
+          <Select
+            placeholder="Select company"
+            onChange={handleCompanyChange}
           >
-            <Select
-              placeholder="Select company"
-              onChange={handleCompanyChange}
-            >
-              {VEHICLE_COMPANIES.map(company => (
-                <Select.Option key={company.name} value={company.name}>
-                  {company.name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+            {VEHICLE_COMPANIES.map(company => (
+              <Select.Option key={company.name} value={company.name}>
+                {company.name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-          <Form.Item
-            name="model"
-            label="Model"
-            rules={[{ required: true, message: 'Please select model' }]}
+        <Form.Item
+          name="model"
+          label="Model"
+          rules={[{ required: true, message: 'Please select model' }]}
+        >
+          <Select
+            placeholder="Select model"
+            disabled={!selectedCompany}
           >
-            <Select
-              placeholder="Select model"
-              disabled={!selectedCompany}
-            >
-              {selectedCompany && VEHICLE_COMPANIES.find(c => c.name === selectedCompany)?.models.map(model => (
-                <Select.Option key={model} value={model}>
-                  {model}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+            {selectedCompany && VEHICLE_COMPANIES.find(c => c.name === selectedCompany)?.models.map(model => (
+              <Select.Option key={model} value={model}>
+                {model}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-          <Form.Item
-            name="registration_no"
-            label="Registration No"
-            rules={[{ required: true, message: 'Please enter registration number' }]}
-          >
-            <Input placeholder="Enter registration number" />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={loading}>
-                {editingVehicle ? 'Update' : 'Add'}
-              </Button>
-              <Button onClick={() => {
-                setIsModalVisible(false);
-                setSelectedCompany(null);
-                form.resetFields();
-              }}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+        <Form.Item
+          name="registration_no"
+          label="Registration No"
+          rules={[{ required: true, message: 'Please enter registration number' }]}
+        >
+          <Input placeholder="Enter registration number" />
+        </Form.Item>
+      </FormModal>
     </>
   );
 };

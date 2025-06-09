@@ -82,12 +82,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         // Generate JWT token
         console.log('11. Generating JWT token');
         const token = jwt.sign(
-            { 
-                userId: user.id, 
-                username: user.username, 
-                role: user.role 
-            },
-            process.env.JWT_SECRET || 'your-secret-key',
+            { userId: user.id, username: user.username, role: user.role },
+            process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production',
             { expiresIn: '24h' }
         );
 
@@ -162,12 +158,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { 
-                userId: newUser.id, 
-                username: newUser.username, 
-                role: newUser.role 
-            },
-            process.env.JWT_SECRET || 'your-secret-key',
+            { userId: newUser.id, username: newUser.username, role: newUser.role },
+            process.env.JWT_SECRET || 'your-super-secret-key-change-this-in-production',
             { expiresIn: '24h' }
         );
 
