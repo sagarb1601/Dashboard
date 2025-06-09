@@ -681,6 +681,16 @@ router.put('/promotions/:id', authenticateToken, async (req: AuthenticatedReques
         const { id } = req.params;
         const { to_designation_id, effective_date, remarks, level } = req.body;
 
+        // Log request parameters
+        console.log('Update promotion request:', {
+            id,
+            to_designation_id,
+            effective_date,
+            remarks,
+            level,
+            user: req.user
+        });
+
         // Validate parameters
         if (!to_designation_id || !effective_date || !level) {
             res.status(400).json({ error: 'Missing required fields' });
@@ -700,7 +710,7 @@ router.put('/promotions/:id', authenticateToken, async (req: AuthenticatedReques
         await client.query('BEGIN');
 
         // Set current user for audit logging
-        await client.query("SET LOCAL app.current_user_id = $1", [req.user.userId]);
+        await client.query('SET LOCAL app.current_user_id = $1', [req.user.userId]);
 
         // Get the current promotion
         const currentPromotionResult = await client.query(
@@ -728,32 +738,36 @@ router.put('/promotions/:id', authenticateToken, async (req: AuthenticatedReques
             return;
         }
 
-        // Update the promotion
-        console.log('Update parameters:', {
-            designationId,
+        // Log the query parameters
+        console.log('Updating promotion with parameters:', {
             effective_date,
-            promotionLevel,
+            to_designation_id: designationId,
+            level: promotionLevel,
             remarks,
-            promotionId
+            id: promotionId
         });
 
-        const updateQuery = 'UPDATE hr_employee_promotions SET to_designation_id = $1, effective_date = $2, level = $3, remarks = $4 WHERE id = $5 RETURNING *';
-        console.log('Update query:', updateQuery);
-
-        const updateResult = await client.query(updateQuery, [
-            designationId,
-            effective_date,
-            promotionLevel,
-            remarks,
-            promotionId
-        ]);
+        // Update the promotion with proper parameter binding
+        const updateResult = await client.query(
+            `UPDATE hr_employee_promotions 
+             SET effective_date = $1,
+                 to_designation_id = $2,
+                 level = $3,
+                 remarks = $4
+             WHERE id = $5
+             RETURNING *`,
+            [effective_date, designationId, promotionLevel, remarks || null, promotionId]
+        );
 
         if (updateResult.rows.length === 0) {
             throw new Error('Failed to update promotion');
         }
 
+        console.log('Successfully updated promotion:', updateResult.rows[0]);
+
         await client.query('COMMIT');
         res.json({ 
+            success: true,
             message: 'Promotion updated successfully',
             promotion: updateResult.rows[0]
         });

@@ -349,20 +349,51 @@ const PromotionHistory: React.FC = () => {
     
     try {
       setLoading(true);
-      const formattedDate = dayjs(values.effective_date).format('YYYY-MM-DD');
-      await api.put(`/hr/services/promotions/${editingPromotion.id}`, {
-        effective_date: formattedDate,
-        to_designation_id: values.to_designation_id,
-        level: values.level,
-        remarks: values.remarks || null
-      });
+      console.log('Form values being submitted:', values);
       
-      message.success('Promotion updated successfully');
-      setEditModalVisible(false);
-      form.resetFields();
-      fetchPromotions();
+      // Ensure proper data types and format
+      const updateData = {
+        effective_date: dayjs(values.effective_date).format('YYYY-MM-DD'),
+        to_designation_id: parseInt(values.to_designation_id, 10),
+        level: parseInt(values.level, 10),
+        remarks: values.remarks || null
+      };
+      
+      console.log('Sending update data:', updateData);
+      
+      const response = await api.put(`/hr/services/promotions/${editingPromotion.id}`, updateData);
+      
+      if (response.data.success) {
+        message.success('Promotion updated successfully');
+        setEditModalVisible(false);
+        form.resetFields();
+        fetchPromotions();
+      } else {
+        Modal.error({
+          title: 'Error Updating Promotion',
+          content: response.data.message || 'Failed to update promotion'
+        });
+      }
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to update promotion');
+      console.error('API Error:', error);
+      console.error('Detailed error:', error.response?.data);
+      
+      Modal.error({
+        title: 'Error Updating Promotion',
+        content: (
+          <div>
+            <p>{error.response?.data?.error || 'Failed to update promotion'}</p>
+            {error.response?.data?.details && (
+              <div style={{ marginTop: 10 }}>
+                <p>Technical Details:</p>
+                <pre style={{ whiteSpace: 'pre-wrap' }}>
+                  {JSON.stringify(error.response.data.details, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        )
+      });
     } finally {
       setLoading(false);
     }
