@@ -94,7 +94,7 @@ const GroupTransfer: React.FC = () => {
 
     // Get employee details including join date
     try {
-      const employeeDetails = await api.get(`/hr/employees/${employeeId}`);
+      const employeeDetails = await api.get(`/employees/${employeeId}`);
       if (employeeDetails.data) {
         form.setFieldValue('transfer_date', dayjs(employeeDetails.data.join_date));
       }
@@ -112,7 +112,7 @@ const GroupTransfer: React.FC = () => {
       };
       
       if (editingTransfer) {
-        const response = await api.put(`/hr/services/transfers/${editingTransfer.id}`, postData);
+        const response = await api.put(`/transfers/${editingTransfer.id}`, postData);
         if (response.data) {
           message.success('Transfer updated successfully');
           form.resetFields();
@@ -122,26 +122,7 @@ const GroupTransfer: React.FC = () => {
           fetchTransfers();
         }
       } else {
-        const employeeTransfers = transfers
-          .filter(t => t.employee_id === values.employee_id)
-          .sort((a, b) => new Date(a.transfer_date).getTime() - new Date(b.transfer_date).getTime());
-
-        let from_group_id;
-        if (employeeTransfers.length > 0) {
-          // Use the latest transfer's to_group_id
-          from_group_id = employeeTransfers[employeeTransfers.length - 1].to_group_id;
-        } else {
-          // For first transfer, use employee's current group
-          from_group_id = selectedEmployee?.technical_group_id;
-        }
-
-        const newPostData = {
-          ...postData,
-          from_group_id,
-          to_group_id: values.to_group_id
-        };
-
-        const response = await api.post('/hr/services/transfers', newPostData);
+        const response = await api.post('/transfers', postData);
         if (response.data) {
           message.success('Transfer added successfully');
           form.resetFields();
@@ -150,17 +131,9 @@ const GroupTransfer: React.FC = () => {
           fetchTransfers();
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving transfer:', error);
-      let errorMessage = 'An error occurred';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.status === 400) {
-        errorMessage = 'Invalid transfer data. Please check the dates and groups.';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Server error - Please check transfer dates.';
-      }
-      message.error(errorMessage);
+      message.error('Failed to save transfer');
     } finally {
       setLoading(false);
     }
@@ -185,7 +158,7 @@ const GroupTransfer: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      await api.delete(`/hr/services/transfers/${id}`);
+      await api.delete(`/transfers/${id}`);
       message.success('Transfer record deleted successfully');
       fetchTransfers();
     } catch (error: any) {

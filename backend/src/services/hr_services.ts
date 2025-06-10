@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { Request, Response } from 'express';
+import pool from '../db';
 
 // Add new employee with initial designation and group
 export const addEmployee = async (req: Request, res: Response) => {
@@ -148,13 +149,15 @@ export const changeGroup = async (req: Request, res: Response) => {
 
 // Record attrition
 export const recordAttrition = async (req: Request, res: Response) => {
-    const client = await db.connect();
+    const client = await pool.connect();
     try {
         const {
             employee_id,
-            attrition_date,
-            attrition_type,
-            remarks
+            reason_for_leaving,
+            reason_details,
+            last_date,
+            year,
+            month
         } = req.body;
 
         // Verify employee exists and is active
@@ -173,17 +176,26 @@ export const recordAttrition = async (req: Request, res: Response) => {
 
         // Record attrition
         const result = await client.query(
-            `INSERT INTO hr_employee_attrition 
-            (employee_id, attrition_date, attrition_type, remarks) 
-            VALUES ($1, $2, $3, $4) 
+            `INSERT INTO hr_attrition 
+            (employee_id, reason_for_leaving, reason_details, last_date, year, month) 
+            VALUES ($1, $2, $3, $4, $5, $6) 
             RETURNING *`,
-            [employee_id, attrition_date, attrition_type, remarks]
+            [employee_id, reason_for_leaving, reason_details, last_date, year, month]
+        );
+
+        // Update employee status
+        await client.query(
+            `UPDATE hr_employees 
+             SET status = $1, 
+                 leaving_date = $2 
+             WHERE employee_id = $3`,
+            [reason_for_leaving, last_date, employee_id]
         );
 
         res.status(201).json(result.rows[0]);
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error in recordAttrition:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     } finally {
         client.release();
     }
@@ -191,7 +203,7 @@ export const recordAttrition = async (req: Request, res: Response) => {
 
 // Get employee history (promotions, group changes, and attrition)
 export const getEmployeeHistory = async (req: Request, res: Response) => {
-    const client = await db.connect();
+    const client = await pool.connect();
     try {
         const { employee_id } = req.params;
 
@@ -236,7 +248,7 @@ export const getEmployeeHistory = async (req: Request, res: Response) => {
 
         // Get attrition record if exists
         const attritionResult = await client.query(
-            `SELECT * FROM hr_employee_attrition
+            `SELECT * FROM hr_attrition
              WHERE employee_id = $1`,
             [employee_id]
         );
@@ -247,9 +259,9 @@ export const getEmployeeHistory = async (req: Request, res: Response) => {
             groupChanges: groupChangesResult.rows,
             attrition: attritionResult.rows[0] || null
         });
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Error in getEmployeeHistory:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
     } finally {
         client.release();
     }
