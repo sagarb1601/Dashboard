@@ -1,14 +1,9 @@
 import React from 'react';
-import type { AntdIconProps } from '@ant-design/icons/lib/components/AntdIcon';
+import type { AntdIconProps } from '@ant-design/icons/es/components/AntdIcon';
 
-// This wrapper ensures all required props are provided to Ant Design icons
-export const IconWrapper = (Icon: React.ComponentType<any>) => {
-  return React.forwardRef<HTMLSpanElement, Partial<AntdIconProps>>((props, ref) => {
-    const iconProps = {
-      onPointerMoveCapture: () => {},
-      onPointerOutCapture: () => {},
-      ...props
-    };
-    return <Icon {...iconProps} ref={ref} />;
-  });
+// Use a type assertion to handle the icon component
+export const IconWrapper = (Icon: any) => {
+  return function WrappedIcon(props: Partial<AntdIconProps>) {
+    return <Icon {...props} />;
+  };
 }; 

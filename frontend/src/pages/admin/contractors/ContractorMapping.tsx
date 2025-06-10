@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Form, Select, DatePicker, Button, Card, message } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import moment from 'moment';
 import axios from 'axios';
+import moment from 'moment';
 
 interface Contractor {
   contractor_id: number;
@@ -73,6 +73,10 @@ const ContractorMapping: React.FC = () => {
     return Promise.resolve();
   };
 
+  const formatDate = (date: Dayjs | null) => {
+    return date ? date.format('YYYY-MM-DD') : '';
+  };
+
   return (
     <Card title="Map Contractor to Department">
       <Form
@@ -120,9 +124,9 @@ const ContractorMapping: React.FC = () => {
             { type: 'date', message: 'Please select a valid date' }
           ]}
         >
-          <DatePicker 
+          <DatePicker
             style={{ width: '100%' }}
-            disabledDate={date => date && date.isBefore(moment(), 'day')}
+            disabledDate={date => date ? date.isBefore(dayjs().startOf('day').toDate()) : false}
           />
         </Form.Item>
 
@@ -135,11 +139,14 @@ const ContractorMapping: React.FC = () => {
             { validator: validateEndDate }
           ]}
         >
-          <DatePicker 
+          <DatePicker
             style={{ width: '100%' }}
             disabledDate={date => {
+              if (!date || !date.isValid()) return false;
+              const today = moment().startOf('day');
               const startDate = form.getFieldValue('start_date');
-              return date && (date.isBefore(moment(), 'day') || (startDate && date.isBefore(startDate, 'day')));
+              return moment(date).isSameOrBefore(today) || 
+                     (startDate && moment(date).isSameOrBefore(moment(startDate)));
             }}
           />
         </Form.Item>

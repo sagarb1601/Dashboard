@@ -15,7 +15,7 @@ import {
   Assessment as ExpenditureIcon,
   AccountBalanceWallet as GrantIcon,
   Business as ProjectIcon,
-  CalendarToday as YearlyBudgetIcon,
+  CalendarToday as CalendarIcon,
   Build as BuildIcon,
   DirectionsCar as CarIcon,
   WorkHistory as TrainingIcon,
@@ -67,7 +67,7 @@ const Sidebar: React.FC = () => {
         return [
           { text: 'Projects', icon: <ProjectIcon />, path: '/finance' },
           { text: 'Budget Fields', icon: <BudgetIcon />, path: '/finance/budget' },
-          { text: 'Yearly Budget', icon: <YearlyBudgetIcon />, path: '/finance/yearly-budget' },
+          { text: 'Yearly Budget', icon: <CalendarIcon />, path: '/finance/yearly-budget' },
           { text: 'Expenditure', icon: <ExpenditureIcon />, path: '/finance/expenditure' },
           { text: 'Grant Received', icon: <GrantIcon />, path: '/finance/grant-received' },
         ];
@@ -131,6 +131,47 @@ const Sidebar: React.FC = () => {
             text: 'Service Details',
             icon: <BuildIcon />,
             path: '/business/service-details'
+          },
+
+          {
+            text: 'Agreements',
+            icon: <BuildIcon />,
+            path: '/business/agreements'
+          },
+
+          {
+            text: 'SLA Fund',
+            icon: <BuildIcon />,
+            path: '/business/sla-fund'
+          }
+
+        ];
+      case 'tg':
+        return [
+          {
+            text: 'Group Projects',
+            icon: <GroupWorkIcon />,
+            path: '/technical/group-projects'
+          },
+          {
+            text: 'Project Status',
+            icon: <AssignmentIcon />,
+            path: '/technical/project-status'
+          },
+          {
+            text: 'PI/COPI',
+            icon: <BuildIcon />,
+            path: '/technical/pi-copi'
+          },
+          {
+            text: 'Publications',
+            icon: <FolderIcon />,
+            path: '/technical/publications'
+          },
+          {
+            text: 'Events',
+            icon: <CalendarIcon />,
+            path: '/technical/events'
           }
         ];
       default:

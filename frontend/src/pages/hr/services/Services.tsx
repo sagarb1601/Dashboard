@@ -4,6 +4,7 @@ import GroupTransfer from './GroupTransfer';
 import Promotions from './Promotions';
 import Attrition from './Attrition';
 import ContractRenewal from './ContractRenewal';
+import PromotionHistory from './PromotionHistory';
 
 const Services: React.FC = () => {
   const items = [
@@ -11,6 +12,11 @@ const Services: React.FC = () => {
       key: 'promotions',
       label: 'Promotions',
       children: <Promotions />
+    },
+    {
+      key: 'promotion_history',
+      label: 'Promotion History',
+      children: <PromotionHistory />
     },
     // Temporarily hiding Group Transfers
     // {

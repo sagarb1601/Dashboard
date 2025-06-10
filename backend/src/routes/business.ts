@@ -188,6 +188,45 @@ router.delete('/business-entities/:id', authenticateToken, async (req: Request, 
 // ==================== Services Routes ====================
 router.get('/services', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
+    // First check if tables exist
+    const checkTables = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'services'
+      ) as services_exists,
+      EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'business_entities'
+      ) as entities_exists,
+      EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'clients'
+      ) as clients_exists;
+    `);
+    
+    console.log('Table existence check:', checkTables.rows[0]);
+
+    // If any table is missing, log it
+    if (!checkTables.rows[0].services_exists) {
+      console.error('Services table does not exist');
+      res.status(500).json({ error: 'Services table does not exist' });
+      return;
+    }
+    if (!checkTables.rows[0].entities_exists) {
+      console.error('Business entities table does not exist');
+      res.status(500).json({ error: 'Business entities table does not exist' });
+      return;
+    }
+    if (!checkTables.rows[0].clients_exists) {
+      console.error('Clients table does not exist');
+      res.status(500).json({ error: 'Clients table does not exist' });
+      return;
+    }
+
+    // If all tables exist, try to fetch data
     const result = await pool.query(`
       SELECT 
         s.id,
@@ -210,9 +249,19 @@ router.get('/services', authenticateToken, async (req: Request, res: Response): 
     `);
 
     res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching services:', error);
-    res.status(500).json({ error: 'Failed to fetch services' });
+  } catch (error: any) {
+    console.error('Detailed error in fetching services:', {
+      message: error.message,
+      stack: error.stack,
+      detail: error.detail,
+      hint: error.hint,
+      code: error.code
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch services',
+      details: error.message,
+      code: error.code
+    });
   }
 });
 

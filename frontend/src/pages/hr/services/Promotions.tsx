@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, message, Input, InputNumber, Button, Select, DatePicker, Modal, Table, Space } from 'antd';
+import { Form, message, Input, InputNumber, Button, Select, Modal, Table, Space } from 'antd';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import api from '../../../utils/api';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
 
 interface Employee {
   employee_id: number;
@@ -26,6 +29,11 @@ interface Promotion {
   effective_date: string;
   remarks: string;
   level: number;
+}
+
+interface FilterOption {
+  label?: string;
+  value?: string | number;
 }
 
 const Promotions: React.FC = () => {
@@ -136,7 +144,7 @@ const Promotions: React.FC = () => {
       employee_id: record.employee_id,
       to_designation_id: record.to_designation_id,
       level: record.level,
-      effective_date: dayjs(record.effective_date),
+      effective_date: new Date(record.effective_date),
       remarks: record.remarks
     });
     setOpen(true);
@@ -158,7 +166,7 @@ const Promotions: React.FC = () => {
       setLoading(true);
       const postData = {
         ...values,
-        effective_date: values.effective_date.format('YYYY-MM-DD')
+        effective_date: dayjs(values.effective_date).format('YYYY-MM-DD')
       };
       
       if (editingPromotion) {
@@ -203,16 +211,8 @@ const Promotions: React.FC = () => {
         }
       }
     } catch (error: any) {
-      console.error('Error saving promotion:', error);
-      let errorMessage = 'An error occurred';
-      if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.status === 400) {
-        errorMessage = 'Invalid promotion data. Please check the dates and designations.';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Server error - Please check promotion dates and designation chain.';
-      }
-      message.error(errorMessage);
+      console.error('Error submitting promotion:', error);
+      message.error(error.response?.data?.message || 'Failed to submit promotion');
     } finally {
       setLoading(false);
     }
@@ -289,7 +289,7 @@ const Promotions: React.FC = () => {
             optionFilterProp="children"
             value={selectedEmployee?.employee_id}
             onChange={handleEmployeeChange}
-            filterOption={(input, option) =>
+            filterOption={(input: string, option?: FilterOption) =>
               option?.label?.toString().toLowerCase().includes(input.toLowerCase()) ?? false
             }
             options={employees.map(emp => ({
@@ -358,7 +358,7 @@ const Promotions: React.FC = () => {
               placeholder="Select employee"
               optionFilterProp="children"
               disabled={!!editingPromotion || !!selectedEmployee}
-              filterOption={(input, option) =>
+              filterOption={(input: string, option?: FilterOption) =>
                 option?.label?.toString().toLowerCase().includes(input.toLowerCase()) ?? false
               }
               options={employees.map(emp => ({
@@ -377,7 +377,7 @@ const Promotions: React.FC = () => {
               showSearch
               placeholder="Select new designation"
               optionFilterProp="children"
-              filterOption={(input, option) =>
+              filterOption={(input: string, option?: FilterOption) =>
                 option?.label?.toString().toLowerCase().includes(input.toLowerCase()) ?? false
               }
               options={designations.map(des => ({
@@ -400,18 +400,21 @@ const Promotions: React.FC = () => {
             label="Effective Date"
             rules={[{ required: true, message: 'Please select effective date' }]}
           >
-            <DatePicker 
-              style={{ width: '100%' }}
-              disabledDate={(current) => {
-                if (dateConstraints.minDate && current < dayjs(dateConstraints.minDate)) {
-                  return true;
-                }
-                if (dateConstraints.maxDate && current > dayjs(dateConstraints.maxDate)) {
-                  return true;
-                }
-                return false;
-              }}
-            />
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker 
+                slotProps={{
+                  textField: { 
+                    style: { width: '100%' },
+                    size: "small"
+                  }
+                }}
+                shouldDisableDate={(date: Date | Dayjs) => {
+                  if (!dateConstraints.minDate) return false;
+                  const current = dayjs(date);
+                  return current.isBefore(dayjs(dateConstraints.minDate));
+                }}
+              />
+            </LocalizationProvider>
           </Form.Item>
 
           <Form.Item

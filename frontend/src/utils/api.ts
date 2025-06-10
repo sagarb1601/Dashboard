@@ -129,4 +129,11 @@ export const vehicles = {
   deleteInsurance: (id: number) => api.delete<{ message: string }>(`/admin/vehicles/insurance/${id}`),
 };
 
+export const promotions = {
+  getAll: () => api.get('/hr/services/promotions'),
+  create: (data: any) => api.post('/hr/services/promotions', data),
+  update: (id: number, data: any) => api.put(`/hr/services/promotions/${id}`, data),
+  delete: (id: number) => api.delete(`/hr/services/promotions/${id}`)
+};
+
 export default api; 
