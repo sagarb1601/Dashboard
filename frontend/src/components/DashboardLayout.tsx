@@ -124,7 +124,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
+            >
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -159,7 +159,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           mt: '64px',
           backgroundColor: '#f5f7fa',
           //minHeight: 'calc(100vh - 64px)',
-        }}
+                  }}
       >
         {children}
       </Box>

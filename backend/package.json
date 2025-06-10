@@ -16,6 +16,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/node-cron": "^3.0.11",
+    "backend": "file:",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",

@@ -17,6 +17,8 @@ import hrRoutes from './routes/hr';
 
 const app = express();
 
+app.use(express.json());
+
 // CORS configuration
 app.use(cors({
   origin: true,  // Allow all origins during development

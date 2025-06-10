@@ -41,7 +41,9 @@ interface Project {
 }
 
 const validationSchema = yup.object({
-  project_name: yup.string().required('Project name is required'),
+  project_name: yup.string()
+    .required('Project name is required')
+    .max(100, 'Project name must be at most 100 characters'),
   start_date: yup.date().required('Start date is required'),
   end_date: yup.date()
     .required('End date is required')
@@ -51,12 +53,14 @@ const validationSchema = yup.object({
     .min(yup.ref('end_date'), 'Extension date must be after end date'),
   total_value: yup.number()
     .required('Total value is required')
-    .positive('Total value must be positive'),
+    .positive('Total value must be positive')
+    .max(1_000_000_000_000, "Total value is too large."),
   funding_agency: yup.string().required('Funding agency is required'),
   duration_years: yup.number()
     .required('Duration is required')
     .positive('Duration must be positive')
-    .integer('Duration must be a whole number'),
+    .integer('Duration must be a whole number')
+    .max(100, "Maximum duration is 100 years."),
 });
 
 const Projects = () => {
@@ -189,9 +193,16 @@ const Projects = () => {
     }
   };
 
+  const drawerWidth = 240;
+
   return (
     <DashboardLayout>
-      <Box sx={{ p: 3 }}>
+      <Box sx={{
+          position: "absolute",
+          zIndex: 1000,
+          left: `${drawerWidth}px`,
+          p: 3
+        }}>
         <Stack spacing={3}>
           {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
           {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
@@ -356,7 +367,7 @@ const Projects = () => {
                   />
                 )}
 
-                <TextField
+                {/* <TextField
                   fullWidth
                   id="duration_years"
                   name="duration_years"
@@ -366,7 +377,7 @@ const Projects = () => {
                   onChange={formik.handleChange}
                   error={formik.touched.duration_years && Boolean(formik.errors.duration_years)}
                   helperText={formik.touched.duration_years && formik.errors.duration_years}
-                />
+                /> */}
               </Stack>
             </DialogContent>
             <DialogActions>

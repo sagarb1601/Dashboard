@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../../middleware/auth';
 import pool from '../../db';
 
+
 interface Contractor {
   contractor_id: number;
   contractor_company_name: string;
@@ -99,6 +100,16 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
   console.log(`DELETE /admin/contractors/${id} - Deleting contractor`);
   
   try {
+    const mappingCheck = await pool.query(
+      'SELECT * FROM admin_contractor_department_mapping WHERE contractor_id = $1 LIMIT 1',
+      [id]
+    );
+
+    if(mappingCheck.rows.length > 0){
+      res.status(404).json({error: "Contractor is mapped with any department."});
+      return;
+    }
+
     const result = await pool.query(
       'DELETE FROM admin_contractors WHERE contractor_id = $1 RETURNING *',
       [id]
@@ -199,11 +210,51 @@ router.post('/mappings', authenticateToken, async (req: Request, res: Response):
     );
     console.log('New contractor mapping added:', result.rows[0]);
     res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error adding contractor mapping:', error);
-    res.status(500).json({ error: 'Failed to add contractor mapping' });
+  } catch (error: unknown) {
+    let errorMessage = 'Internal Server Error';
+
+    if (error instanceof Error) {
+      // This gets only the main message, stripping the stack trace
+      errorMessage = error.message.split('\n')[0];
+    }
+
+    console.error('Error adding contractor mapping:', errorMessage);
+    res.status(500).json({ error: errorMessage });
   }
 });
+
+// Update contractor mapping
+router.put('/mappings/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { contractor_id, department_id, start_date, end_date } = req.body;
+  console.log(`PUT /admin/contractors/mappings/${id} - Updating mapping:`, { contractor_id, department_id, start_date, end_date });
+
+  try {
+    const result = await pool.query(
+      `UPDATE admin_contractor_department_mapping
+       SET contractor_id = COALESCE($1, contractor_id),
+           department_id = COALESCE($2, department_id),
+           start_date = COALESCE($3, start_date),
+           end_date = COALESCE($4, end_date)
+       WHERE contract_id = $5
+       RETURNING *`,
+      [contractor_id, department_id, start_date, end_date, id]
+    );
+
+    if (result.rows.length === 0) {
+      console.log('Mapping not found:', id);
+      res.status(404).json({ error: 'Mapping not found' });
+      return;
+    }
+
+    console.log('Mapping updated:', result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating contractor mapping:', error);
+    res.status(500).json({ error: 'Failed to update contractor mapping' });
+  }
+});
+
 
 // Delete contractor mapping
 router.delete('/mappings/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {

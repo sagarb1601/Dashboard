@@ -3,6 +3,7 @@ import { Staff, Salary } from '../types/staff';
 import { Contractor, ContractorMapping } from '../types/contractor';
 import type { Vehicle, VehicleCreate, VehicleServicing, VehicleServicingCreate, VehicleInsurance, VehicleInsuranceCreate } from '../types/vehicles';
 
+
 const BASE_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
