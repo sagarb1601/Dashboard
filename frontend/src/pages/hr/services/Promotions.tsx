@@ -1,18 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Form, message, Input, InputNumber, Button, Select, DatePicker, Modal, Table, Space } from 'antd';
+import type { SelectProps } from 'antd/es/select';
+import type { DatePickerProps } from 'antd/es/date-picker';
+import type { ButtonProps } from 'antd/es/button';
 import api from '../../../utils/api';
 import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
+import type { Moment } from 'moment';
 
 interface Employee {
   employee_id: number;
   employee_name: string;
   initial_designation_id: number;
   designation_id: number;
+  join_date: string;
 }
 
 interface Designation {
   designation_id: number;
   designation: string;
+  designation_full?: string;
 }
 
 interface Promotion {
@@ -26,6 +33,25 @@ interface Promotion {
   effective_date: string;
   remarks: string;
   level: number;
+  promotion_type?: 'REGULAR' | 'SPECIAL' | 'MACP' | 'NFSG' | 'OTHER';
+  promotion_order?: number;
+  pay_level?: number;
+  pay_matrix_cell?: number;
+  order_reference?: string;
+  order_date?: string;
+}
+
+interface PromotionFormValues {
+  employee_id: number;
+  to_designation_id: number;
+  level: number;
+  effective_date: Dayjs;
+  remarks?: string;
+  promotion_type?: Promotion['promotion_type'];
+  pay_level?: number;
+  pay_matrix_cell?: number;
+  order_reference?: string;
+  order_date?: Dayjs;
 }
 
 const Promotions: React.FC = () => {
@@ -34,16 +60,21 @@ const Promotions: React.FC = () => {
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [loadingDesignations, setLoadingDesignations] = useState(false);
+  const [loadingPromotions, setLoadingPromotions] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [open, setOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [dateConstraints, setDateConstraints] = useState<{
-    minDate?: Date;
-    maxDate?: Date;
+    minDate?: string;
+    maxDate?: string;
   }>({});
 
   const fetchEmployees = async () => {
     try {
+      setLoadingEmployees(true);
       const response = await api.get('/hr/employees');
       if (!response.data || response.data.length === 0) {
         message.warning('No employees found');
@@ -52,13 +83,15 @@ const Promotions: React.FC = () => {
     } catch (error) {
       console.error('Error fetching employees:', error);
       message.error('Failed to fetch employees');
+    } finally {
+      setLoadingEmployees(false);
     }
   };
 
   const fetchDesignations = async () => {
     try {
+      setLoadingDesignations(true);
       const response = await api.get('/hr/designations');
-      console.log('Fetched designations:', response.data);
       if (!response.data || response.data.length === 0) {
         message.warning('No designations found');
       }
@@ -66,11 +99,14 @@ const Promotions: React.FC = () => {
     } catch (error) {
       console.error('Error fetching designations:', error);
       message.error('Failed to fetch designations');
+    } finally {
+      setLoadingDesignations(false);
     }
   };
 
   const fetchPromotions = async () => {
     try {
+      setLoadingPromotions(true);
       const response = await api.get('/hr/services/promotions');
       if (!response.data || response.data.length === 0) {
         console.log('No promotions found');
@@ -79,6 +115,8 @@ const Promotions: React.FC = () => {
     } catch (error) {
       console.error('Error fetching promotions:', error);
       message.error('Failed to fetch promotions');
+    } finally {
+      setLoadingPromotions(false);
     }
   };
 
@@ -92,52 +130,32 @@ const Promotions: React.FC = () => {
     const employee = employees.find(e => e.employee_id === employeeId);
     setSelectedEmployee(employee || null);
 
-    // Get employee's promotions to find date constraints
-    const employeePromotions = promotions
-      .filter(p => p.employee_id === employeeId)
-      .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
-
-    if (employeePromotions.length > 0) {
-      // Latest promotion's date becomes the minimum date for new promotion
-      setDateConstraints({
-        minDate: new Date(employeePromotions[employeePromotions.length - 1].effective_date)
-      });
-    } else {
-      // For first promotion, minimum date is employee's join date
-      const employeeDetails = await api.get(`/hr/employees/${employeeId}`);
-      setDateConstraints({
-        minDate: new Date(employeeDetails.data.join_date)
-      });
+    // Get employee's join date for minimum date validation
+    if (employee) {
+        const employeeDetails = await api.get(`/hr/employees/${employeeId}`);
+        setDateConstraints({
+            minDate: employeeDetails.data.join_date // Only restrict dates before join date
+        });
     }
   };
 
   const handleEdit = (record: Promotion) => {
     setEditingPromotion(record);
     
-    // Find date constraints for this promotion
-    const employeePromotions = promotions
-      .filter(p => p.employee_id === record.employee_id)
-      .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
-    
-    const currentIndex = employeePromotions.findIndex(p => p.id === record.id);
-    const constraints: { minDate?: Date; maxDate?: Date } = {};
-    
-    if (currentIndex > 0) {
-      constraints.minDate = new Date(employeePromotions[currentIndex - 1].effective_date);
+    // Only restrict dates before join date
+    const employee = employees.find(e => e.employee_id === record.employee_id);
+    if (employee) {
+        setDateConstraints({
+            minDate: employee.join_date
+        });
     }
-    
-    if (currentIndex < employeePromotions.length - 1) {
-      constraints.maxDate = new Date(employeePromotions[currentIndex + 1].effective_date);
-    }
-    
-    setDateConstraints(constraints);
     
     form.setFieldsValue({
-      employee_id: record.employee_id,
-      to_designation_id: record.to_designation_id,
-      level: record.level,
-      effective_date: dayjs(record.effective_date),
-      remarks: record.remarks
+        employee_id: record.employee_id,
+        to_designation_id: record.to_designation_id,
+        level: record.level,
+        effective_date: dayjs(record.effective_date),
+        remarks: record.remarks
     });
     setOpen(true);
   };
@@ -153,16 +171,16 @@ const Promotions: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: PromotionFormValues) => {
     try {
-      setLoading(true);
+      setSubmitting(true);
       const postData = {
         ...values,
-        effective_date: values.effective_date.format('YYYY-MM-DD')
+        effective_date: values.effective_date.format('YYYY-MM-DD'),
+        order_date: values.order_date?.format('YYYY-MM-DD')
       };
       
       if (editingPromotion) {
-        // For editing existing promotion
         const response = await api.put(`/hr/services/promotions/${editingPromotion.id}`, postData);
         if (response.data) {
           message.success('Promotion updated successfully');
@@ -173,17 +191,14 @@ const Promotions: React.FC = () => {
           fetchPromotions();
         }
       } else {
-        // For new promotion
         const employeePromotions = promotions
           .filter(p => p.employee_id === values.employee_id)
           .sort((a, b) => new Date(a.effective_date).getTime() - new Date(b.effective_date).getTime());
 
         let from_designation_id;
         if (employeePromotions.length > 0) {
-          // Use the latest promotion's to_designation_id
           from_designation_id = employeePromotions[employeePromotions.length - 1].to_designation_id;
         } else {
-          // For first promotion, use employee's initial designation
           from_designation_id = selectedEmployee?.initial_designation_id;
         }
 
@@ -205,16 +220,26 @@ const Promotions: React.FC = () => {
     } catch (error: any) {
       console.error('Error saving promotion:', error);
       let errorMessage = 'An error occurred';
+      
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
+      } else if (error.response?.data?.details) {
+        errorMessage = error.response.data.details;
       } else if (error.response?.status === 400) {
         errorMessage = 'Invalid promotion data. Please check the dates and designations.';
+      } else if (error.response?.status === 404) {
+        errorMessage = 'Employee or designation not found.';
       } else if (error.response?.status === 500) {
         errorMessage = 'Server error - Please check promotion dates and designation chain.';
       }
-      message.error(errorMessage);
+      
+      Modal.error({
+        title: 'Error Saving Promotion',
+        content: errorMessage,
+        maskClosable: true
+      });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -280,12 +305,11 @@ const Promotions: React.FC = () => {
       <div style={{ marginBottom: '24px' }}>
         <h2>Employee Promotions</h2>
         
-        {/* Employee Search/Select Box */}
         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', maxWidth: '600px' }}>
           <Select
             showSearch
             style={{ width: '100%' }}
-            placeholder="Search employee by ID or name"
+            placeholder={loadingEmployees ? 'Loading employees...' : 'Search employee by ID or name'}
             optionFilterProp="children"
             value={selectedEmployee?.employee_id}
             onChange={handleEmployeeChange}
@@ -298,6 +322,8 @@ const Promotions: React.FC = () => {
             }))}
             allowClear
             onClear={() => setSelectedEmployee(null)}
+            loading={loadingEmployees}
+            disabled={loadingEmployees}
           />
           <Button 
             type="primary"
@@ -309,24 +335,27 @@ const Promotions: React.FC = () => {
               }
               setOpen(true);
             }}
-            disabled={!selectedEmployee}
+            disabled={!selectedEmployee || loadingPromotions}
           >
             Add Promotion
           </Button>
         </div>
       </div>
 
-      {/* Show table only when an employee is selected */}
       {selectedEmployee && (
         <Table
           columns={columns}
           dataSource={promotions.filter(p => p.employee_id === selectedEmployee.employee_id)}
           rowKey="id"
-          loading={loading}
+          loading={loadingPromotions}
+          pagination={{
+            defaultPageSize: 10,
+            showSizeChanger: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
+          }}
         />
       )}
 
-      {/* Show message when no employee is selected */}
       {!selectedEmployee && (
         <div style={{ textAlign: 'center', padding: '32px', background: '#f5f5f5', borderRadius: '8px' }}>
           <p>Please select an employee to view their promotion history</p>
@@ -342,6 +371,8 @@ const Promotions: React.FC = () => {
           form.resetFields();
         }}
         footer={null}
+        maskClosable={false}
+        confirmLoading={submitting}
       >
         <Form
           form={form}
@@ -351,7 +382,10 @@ const Promotions: React.FC = () => {
           <Form.Item
             name="employee_id"
             label="Employee"
-            rules={[{ required: true, message: 'Please select an employee' }]}
+            rules={[
+              { required: true, message: 'Please select an employee' },
+              { type: 'number', message: 'Employee ID must be a number' }
+            ]}
           >
             <Select
               showSearch
@@ -371,7 +405,20 @@ const Promotions: React.FC = () => {
           <Form.Item
             name="to_designation_id"
             label="New Designation"
-            rules={[{ required: true, message: 'Please select new designation' }]}
+            rules={[
+              { required: true, message: 'Please select new designation' },
+              { type: 'number', message: 'Designation ID must be a number' },
+              {
+                validator: async (_, value) => {
+                  if (selectedEmployee) {
+                    const currentDesignation = selectedEmployee.designation_id;
+                    if (value === currentDesignation) {
+                      throw new Error('New designation must be different from current designation');
+                    }
+                  }
+                }
+              }
+            ]}
           >
             <Select
               showSearch
@@ -390,7 +437,11 @@ const Promotions: React.FC = () => {
           <Form.Item
             name="level"
             label="Level"
-            rules={[{ required: true, message: 'Please enter level' }]}
+            rules={[
+              { required: true, message: 'Please enter level' },
+              { type: 'number', message: 'Level must be a number' },
+              { min: 1, message: 'Level must be at least 1' }
+            ]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
@@ -398,15 +449,30 @@ const Promotions: React.FC = () => {
           <Form.Item
             name="effective_date"
             label="Effective Date"
-            rules={[{ required: true, message: 'Please select effective date' }]}
+            rules={[
+              { required: true, message: 'Please select effective date' },
+              {
+                validator: async (_, value) => {
+                  if (value) {
+                    const selectedDate = dayjs(value);
+                    const today = dayjs();
+                    if (selectedDate.isAfter(today)) {
+                      throw new Error('Effective date cannot be in the future');
+                    }
+                  }
+                }
+              }
+            ]}
           >
             <DatePicker 
               style={{ width: '100%' }}
-              disabledDate={(current) => {
-                if (dateConstraints.minDate && current < dayjs(dateConstraints.minDate)) {
+              disabledDate={(current: Moment) => {
+                if (!current) return false;
+                const currentDate = dayjs(current.valueOf());
+                if (dateConstraints.minDate && currentDate.isBefore(dayjs(dateConstraints.minDate))) {
                   return true;
                 }
-                if (dateConstraints.maxDate && current > dayjs(dateConstraints.maxDate)) {
+                if (dateConstraints.maxDate && currentDate.isAfter(dayjs(dateConstraints.maxDate))) {
                   return true;
                 }
                 return false;
@@ -415,16 +481,97 @@ const Promotions: React.FC = () => {
           </Form.Item>
 
           <Form.Item
+            name="promotion_type"
+            label="Promotion Type"
+            rules={[{ required: true, message: 'Please select promotion type' }]}
+          >
+            <Select
+              placeholder="Select promotion type"
+              options={[
+                { value: 'REGULAR', label: 'Regular' },
+                { value: 'SPECIAL', label: 'Special' },
+                { value: 'MACP', label: 'MACP' },
+                { value: 'NFSG', label: 'NFSG' },
+                { value: 'OTHER', label: 'Other' }
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="pay_level"
+            label="Pay Level"
+            rules={[
+              { type: 'number', message: 'Pay level must be a number' },
+              { min: 1, message: 'Pay level must be at least 1' }
+            ]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="pay_matrix_cell"
+            label="Pay Matrix Cell"
+            rules={[
+              { type: 'number', message: 'Pay matrix cell must be a number' },
+              { min: 1, message: 'Pay matrix cell must be at least 1' }
+            ]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="order_reference"
+            label="Order Reference"
+            rules={[
+              { max: 100, message: 'Order reference cannot exceed 100 characters' }
+            ]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            name="order_date"
+            label="Order Date"
+            rules={[
+              {
+                validator: async (_, value) => {
+                  if (value) {
+                    const orderDate = dayjs(value);
+                    const effectiveDate = form.getFieldValue('effective_date');
+                    if (effectiveDate && orderDate.isAfter(effectiveDate)) {
+                      throw new Error('Order date cannot be after effective date');
+                    }
+                  }
+                }
+              }
+            ]}
+          >
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
             name="remarks"
             label="Remarks"
+            rules={[
+              { max: 500, message: 'Remarks cannot exceed 500 characters' }
+            ]}
           >
             <Input.TextArea rows={4} />
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
-              {editingPromotion ? 'Update' : 'Add'} Promotion
-            </Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={submitting}>
+                {editingPromotion ? 'Update' : 'Add'} Promotion
+              </Button>
+              <Button onClick={() => {
+                setOpen(false);
+                setEditingPromotion(null);
+                form.resetFields();
+              }}>
+                Cancel
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       </Modal>

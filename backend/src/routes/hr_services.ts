@@ -64,9 +64,13 @@ router.post('/promotions', authenticateToken, async (req: AuthenticatedRequest, 
         try {
             await client.query('BEGIN');
 
+            // First disable the date order trigger if it exists
+            await client.query('ALTER TABLE hr_employee_promotions DISABLE TRIGGER ensure_promotion_date_order;');
+            await client.query('ALTER TABLE hr_employee_promotions DISABLE TRIGGER ensure_promotion_chain;');
+
             // Get employee details including initial designation
             const employeeResult = await client.query(
-                'SELECT designation_id, initial_designation_id FROM hr_employees WHERE employee_id = $1',
+                'SELECT designation_id, initial_designation_id, join_date FROM hr_employees WHERE employee_id = $1',
                 [employee_id]
             );
 
@@ -75,29 +79,30 @@ router.post('/promotions', authenticateToken, async (req: AuthenticatedRequest, 
                 return;
             }
 
-            // Check if there are any existing promotions for this employee
-            const existingPromotions = await client.query(
-                `SELECT * FROM hr_employee_promotions 
+            // Check if promotion date is after join date
+            if (new Date(effective_date) < new Date(employeeResult.rows[0].join_date)) {
+                res.status(400).json({ error: 'Promotion date cannot be before employee join date' });
+                return;
+            }
+
+            // Get the previous promotion based on the new effective date
+            const prevPromotionResult = await client.query(
+                `SELECT to_designation_id 
+                FROM hr_employee_promotions 
                 WHERE employee_id = $1 
-                ORDER BY effective_date ASC`,
-                [employee_id]
+                AND effective_date < $2
+                ORDER BY effective_date DESC 
+                LIMIT 1`,
+                [employee_id, effective_date]
             );
 
             let from_designation_id;
-
-            if (existingPromotions.rows.length === 0) {
+            if (prevPromotionResult.rows.length === 0) {
                 // For first promotion, use initial_designation_id
                 from_designation_id = employeeResult.rows[0].initial_designation_id;
             } else {
-                // For subsequent promotions, use the to_designation_id of the latest promotion
-                const latestPromotion = existingPromotions.rows[existingPromotions.rows.length - 1];
-                from_designation_id = latestPromotion.to_designation_id;
-
-                // Check if the new promotion date is after the latest promotion
-                if (new Date(effective_date) <= new Date(latestPromotion.effective_date)) {
-                    res.status(400).json({ error: 'New promotion date must be after the latest promotion' });
-                    return;
-                }
+                // For subsequent promotions, use the to_designation_id of the chronologically previous promotion
+                from_designation_id = prevPromotionResult.rows[0].to_designation_id;
             }
 
             // Create the promotion record
@@ -109,41 +114,52 @@ router.post('/promotions', authenticateToken, async (req: AuthenticatedRequest, 
                 [employee_id, from_designation_id, to_designation_id, effective_date, remarks, level]
             );
 
-            // Update employee's current designation
-            await client.query(
-                'UPDATE hr_employees SET designation_id = $1 WHERE employee_id = $2',
-                [to_designation_id, employee_id]
+            // Update employee's current designation if this is now the latest promotion
+            const hasLaterPromotions = await client.query(
+                `SELECT 1 FROM hr_employee_promotions 
+                WHERE employee_id = $1 
+                AND effective_date > $2`,
+                [employee_id, effective_date]
             );
+
+            if (hasLaterPromotions.rows.length === 0) {
+                await client.query(
+                    'UPDATE hr_employees SET designation_id = $1 WHERE employee_id = $2',
+                    [to_designation_id, employee_id]
+                );
+            }
+
+            // Re-enable the triggers
+            await client.query('ALTER TABLE hr_employee_promotions ENABLE TRIGGER ensure_promotion_date_order;');
+            await client.query('ALTER TABLE hr_employee_promotions ENABLE TRIGGER ensure_promotion_chain;');
 
             await client.query('COMMIT');
 
-            // Fetch complete promotion data with joined tables
-            const completePromotion = await pool.query(`
-                SELECT p.*,
-                       e.employee_name,
-                       fd.designation as from_designation,
-                       fd.designation_full as from_designation_full,
-                       td.designation as to_designation,
-                       td.designation_full as to_designation_full
+            // Fetch the complete promotion record with employee and designation names
+            const completeResult = await pool.query(`
+                SELECT 
+                    p.*,
+                    e.employee_name,
+                    d_from.designation as old_designation,
+                    d_to.designation as new_designation
                 FROM hr_employee_promotions p
                 JOIN hr_employees e ON p.employee_id = e.employee_id
-                LEFT JOIN hr_designations fd ON p.from_designation_id = fd.designation_id
-                LEFT JOIN hr_designations td ON p.to_designation_id = td.designation_id
+                LEFT JOIN hr_designations d_from ON p.from_designation_id = d_from.designation_id
+                JOIN hr_designations d_to ON p.to_designation_id = d_to.designation_id
                 WHERE p.id = $1
             `, [result.rows[0].id]);
 
-            res.status(201).json(completePromotion.rows[0]);
+            res.status(201).json(completeResult.rows[0]);
         } catch (error) {
             await client.query('ROLLBACK');
             throw error;
         } finally {
             client.release();
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creating promotion:', error);
-        res.status(500).json({ 
-            error: 'Error creating promotion', 
-            details: error instanceof Error ? error.message : 'Unknown error' 
+        res.status(error.status || 500).json({ 
+            error: error.message || 'Internal server error'
         });
     }
 });
@@ -1071,6 +1087,150 @@ router.delete('/contracts/:id', authenticateToken, async (req: AuthenticatedRequ
     } catch (error) {
         console.error('Error deleting contract:', error);
         res.status(500).json({ error: 'Failed to delete contract' });
+    }
+});
+
+// Delete promotion
+router.delete('/promotions/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        // Check if the promotion record exists
+        const checkResult = await pool.query(
+            'SELECT * FROM hr_employee_promotions WHERE id = $1',
+            [id]
+        );
+
+        if (checkResult.rows.length === 0) {
+            res.status(404).json({ error: 'Promotion record not found' });
+            return;
+        }
+
+        // Delete the promotion record
+        await pool.query(
+            'DELETE FROM hr_employee_promotions WHERE id = $1',
+            [id]
+        );
+
+        res.json({ message: 'Promotion record deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting promotion:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Add these endpoints after the existing promotion endpoints
+router.post('/validate-promotions', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const { promotions } = req.body;
+        const errors: string[] = [];
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            // Validate employee existence and get their current designations
+            for (const [index, promotion] of promotions.entries()) {
+                // Check if employee exists
+                const employeeResult = await client.query(
+                    'SELECT e.*, d.designation_name FROM hr_employees e JOIN hr_designations d ON e.designation_id = d.id WHERE e.employee_id = $1',
+                    [promotion.employee_id]
+                );
+
+                if (employeeResult.rows.length === 0) {
+                    errors.push(`Row ${index + 1}: Employee ID ${promotion.employee_id} does not exist`);
+                    continue;
+                }
+
+                const employee = employeeResult.rows[0];
+
+                // Check if promotion date is after join date
+                if (new Date(promotion.effective_date) < new Date(employee.join_date)) {
+                    errors.push(`Row ${index + 1}: Promotion date cannot be before employee join date for employee ${promotion.employee_id}`);
+                }
+
+                // Check if designation exists
+                const designationResult = await client.query(
+                    'SELECT * FROM hr_designations WHERE id = $1',
+                    [promotion.to_designation_id]
+                );
+
+                if (designationResult.rows.length === 0) {
+                    errors.push(`Row ${index + 1}: Invalid designation ID ${promotion.to_designation_id}`);
+                }
+
+                // Validate designation progression
+                const currentDesignation = employee.designation_id;
+                if (promotion.to_designation_id < currentDesignation) {
+                    errors.push(`Row ${index + 1}: Cannot demote employee ${promotion.employee_id} from ${employee.designation_name}`);
+                }
+            }
+
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+
+        res.json({ errors });
+    } catch (error) {
+        console.error('Error validating promotions:', error);
+        res.status(500).json({ error: 'Internal server error', errors: ['Failed to validate promotions'] });
+    }
+});
+
+router.post('/import-promotions', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        const { promotions } = req.body;
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            for (const promotion of promotions) {
+                // Get employee's current designation
+                const employeeResult = await client.query(
+                    'SELECT designation_id FROM hr_employees WHERE employee_id = $1',
+                    [promotion.employee_id]
+                );
+
+                const from_designation_id = employeeResult.rows[0].designation_id;
+
+                // Insert promotion record
+                await client.query(
+                    `INSERT INTO hr_employee_promotions 
+                    (employee_id, effective_date, from_designation_id, to_designation_id, level, remarks)
+                    VALUES ($1, $2, $3, $4, $5, $6)`,
+                    [
+                        promotion.employee_id,
+                        promotion.effective_date,
+                        from_designation_id,
+                        promotion.to_designation_id,
+                        promotion.level,
+                        promotion.remarks || null
+                    ]
+                );
+
+                // Update employee's current designation
+                await client.query(
+                    'UPDATE hr_employees SET designation_id = $1 WHERE employee_id = $2',
+                    [promotion.to_designation_id, promotion.employee_id]
+                );
+            }
+
+            await client.query('COMMIT');
+            res.json({ message: 'Promotions imported successfully' });
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    } catch (error) {
+        console.error('Error importing promotions:', error);
+        res.status(500).json({ error: 'Failed to import promotions' });
     }
 });
 

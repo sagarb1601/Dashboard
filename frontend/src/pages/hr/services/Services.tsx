@@ -2,6 +2,7 @@ import React from 'react';
 import { Tabs } from 'antd';
 import GroupTransfer from './GroupTransfer';
 import Promotions from './Promotions';
+import PromotionHistory from './PromotionHistory';
 import Attrition from './Attrition';
 import ContractRenewal from './ContractRenewal';
 
@@ -11,6 +12,11 @@ const Services: React.FC = () => {
       key: 'promotions',
       label: 'Promotions',
       children: <Promotions />
+    },
+    {
+      key: 'promotion_history',
+      label: 'Promotion History',
+      children: <PromotionHistory />
     },
     // Temporarily hiding Group Transfers
     // {
