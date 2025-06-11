@@ -1,5 +1,5 @@
 -- Create admin_departments table
-CREATE TABLE admin_departments (
+CREATE TABLE IF NOT EXISTS admin_departments (
     department_id SERIAL PRIMARY KEY,
     department_name VARCHAR(50) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
