@@ -320,7 +320,7 @@ const ContractorMappings: React.FC = () => {
               <DatePicker
                 label="Start Date"
                 value={formData.start_date}
-                onChange={(date) => handleDateChange('start_date', date)}
+                onChange={(date) => handleDateChange('start_date', date as Date | null)}
                 slotProps={{ textField: { fullWidth: true } }}
               />
             </LocalizationProvider>
@@ -328,7 +328,7 @@ const ContractorMappings: React.FC = () => {
               <DatePicker
                 label="End Date"
                 value={formData.end_date}
-                onChange={(date) => handleDateChange('end_date', date)}
+                onChange={(date) => handleDateChange('end_date', date as Date | null)}
                 slotProps={{ textField: { fullWidth: true } }}
               />
             </LocalizationProvider>
