@@ -34,6 +34,7 @@ import { format, parseISO } from 'date-fns';
 import { staff, departments } from '../../../utils/api';
 import { Staff } from '../../../types/staff';
 import ErrorNotification from '../../../components/ErrorNotification';
+import dayjs, { Dayjs } from 'dayjs';
 
 interface Department {
   department_id: number;
@@ -312,7 +313,7 @@ const StaffTab: React.FC = () => {
               <DatePicker
                 label="Joining Date"
                 value={formData.joining_date}
-                onChange={(date) => setFormData({ ...formData, joining_date: date })}
+                onChange={(date) => setFormData({ ...formData, joining_date: date as Date | null })}
                 slotProps={{ 
                   textField: { 
                     fullWidth: true,
@@ -325,7 +326,7 @@ const StaffTab: React.FC = () => {
               <DatePicker
                 label="Date of Leaving"
                 value={formData.date_of_leaving}
-                onChange={(date) => setFormData({ ...formData, date_of_leaving: date })}
+                onChange={(date) => setFormData({ ...formData, date_of_leaving: date ? (date as Dayjs).toDate() : null})}
                 slotProps={{ textField: { fullWidth: true } }}
                 minDate={formData.joining_date || undefined}
                 disabled={!formData.joining_date}

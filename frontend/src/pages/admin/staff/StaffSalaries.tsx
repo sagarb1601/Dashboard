@@ -260,7 +260,7 @@ const StaffSalaries: React.FC = () => {
               <DatePicker
                 label="Payment Date"
                 value={formData.payment_date}
-                onChange={(date) => setFormData({ ...formData, payment_date: date })}
+                onChange={(date) => setFormData({ ...formData, payment_date: date as Date | null})}
                 slotProps={{ 
                   textField: { 
                     fullWidth: true,

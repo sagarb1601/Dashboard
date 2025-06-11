@@ -137,4 +137,11 @@ export const promotions = {
   delete: (id: number) => api.delete(`/hr/services/promotions/${id}`)
 };
 
+export const attrition = {
+  getAll: () => api.get('/hr/services/attrition'),
+  create: (data: any) => api.post('/hr/services/attrition', data),
+  update: (id: number, data: any) => api.put(`/hr/services/attrition/${id}`, data),
+  delete: (id: number) => api.delete(`/hr/services/attrition/${id}`),
+};
+
 export default api; 

@@ -512,7 +512,7 @@ const Promotions: React.FC = () => {
               }
             ]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker sx={{ width: '100%' }} />
           </Form.Item>
 
           <Form.Item
