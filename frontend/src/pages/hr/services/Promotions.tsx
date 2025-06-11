@@ -6,6 +6,19 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import api from '../../../utils/api';
 import dayjs, { Dayjs } from 'dayjs';
 
+interface PromotionFormValues {
+  employee_id: number;
+  to_designation_id: number;
+  level: number;
+  effective_date: Dayjs;
+  remarks?: string;
+  promotion_type?: Promotion['promotion_type'];
+  pay_level?: number;
+  pay_matrix_cell?: number;
+  order_reference?: string;
+  order_date?: Dayjs;
+}
+
 interface Employee {
   employee_id: number;
   employee_name: string;
