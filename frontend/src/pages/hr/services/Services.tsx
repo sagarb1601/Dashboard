@@ -5,7 +5,7 @@ import Promotions from './Promotions';
 import PromotionHistory from './PromotionHistory';
 import Attrition from './Attrition';
 import ContractRenewal from './ContractRenewal';
-import PromotionHistory from './PromotionHistory';
+
 
 const Services: React.FC = () => {
   const items = [
