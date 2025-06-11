@@ -130,21 +130,7 @@ export const vehicles = {
   deleteInsurance: (id: number) => api.delete<{ message: string }>(`/admin/vehicles/insurance/${id}`),
 };
 
-export const attrition = {
-  getAll: () => api.get('/hr/services/attrition'),
-  create: (data: any) => api.post('/hr/services/attrition', data),
-  update: (id: number, data: any) => api.put(`/hr/services/attrition/${id}`, data),
-  delete: (id: number) => api.delete(`/hr/services/attrition/${id}`),
-};
-
-interface PromotionsService {
-  getAll: () => Promise<any>;
-  create: (data: any) => Promise<any>;
-  update: (id: number, data: any) => Promise<any>;
-  delete: (id: number) => Promise<any>;
-}
-
-export const promotions: PromotionsService = {
+export const promotions = {
   getAll: () => api.get('/hr/services/promotions'),
   create: (data: any) => api.post('/hr/services/promotions', data),
   update: (id: number, data: any) => api.put(`/hr/services/promotions/${id}`, data),

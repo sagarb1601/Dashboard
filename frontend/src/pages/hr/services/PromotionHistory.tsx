@@ -1,55 +1,57 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Table, Button, Modal, Form, DatePicker, Input, Select, message, Space, InputNumber, Popconfirm } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { IconWrapper } from '../../../utils/IconWrapper';
 import dayjs from 'dayjs';
-import api, { promotions } from '../../../utils/api';
+import api from '../../../utils/api';
+
+// Remove the custom icon components and use icons directly with required props
+const iconProps = {
+  style: { fontSize: '16px' },
+  onPointerEnterCapture: () => {},
+  onPointerLeaveCapture: () => {}
+};
 
 interface Employee {
-    employee_id: number;
-    employee_name: string;
+  employee_id: number;
+  employee_name: string;
 }
 
 interface Promotion {
-    id: number;
-    employee_id: number;
-    employee_name: string;
-    old_designation: string;
-    new_designation: string;
-    effective_date: string;
-    level: number;
-    remarks: string | null;
-    to_designation_id: number;
-    from_designation_id: number;
+  id: number;
+  employee_id: number;
+  employee_name: string;
+  old_designation: string;
+  new_designation: string;
+  effective_date: string;
+  level: number;
+  remarks: string | null;
+  to_designation_id: number;
+  from_designation_id: number;
 }
 
 interface Designation {
-    designation_id: number;
-    designation: string;
-    designation_full?: string;
+  designation_id: number;
+  designation: string;
+  designation_full?: string;
 }
-
-const WrappedEditOutlined = IconWrapper(EditOutlined);
-const WrappedDeleteOutlined = IconWrapper(DeleteOutlined);
-const WrappedPlusOutlined = IconWrapper(PlusOutlined);
 
 const PromotionHistory: React.FC = () => {
     const [promotionsList, setPromotionsList] = useState<Promotion[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [designations, setDesignations] = useState<Designation[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [editModalVisible, setEditModalVisible] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
     const [addModalVisible, setAddModalVisible] = useState(false);
     const [bulkAddModalVisible, setBulkAddModalVisible] = useState(false);
-    const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<number | null>(null);
     const [form] = Form.useForm();
     const [bulkForm] = Form.useForm();
     const [promotionForms, setPromotionForms] = useState<{ key: number }[]>([{ key: 0 }]);
 
-    useEffect(() => {
+  useEffect(() => {
         fetchData();
-    }, []);
+  }, []);
 
     const fetchData = async () => {
         try {
@@ -69,17 +71,17 @@ const PromotionHistory: React.FC = () => {
             setPromotionsList(promotionsRes.data || []);
             setEmployees(employeesRes.data || []);
             setDesignations(designationsRes.data || []);
-        } catch (error) {
+    } catch (error) {
             console.error('Error fetching data:', error);
             message.error('Failed to fetch data');
-        } finally {
-            setLoading(false);
-        }
-    };
+    } finally {
+      setLoading(false);
+    }
+  };
 
     const handleDelete = async (id: number) => {
         try {
-            await promotions.delete(id);
+            await api.delete(`/hr/services/promotions/${id}`);
             message.success('Promotion deleted successfully');
             fetchData();
         } catch (error) {
@@ -112,10 +114,10 @@ const PromotionHistory: React.FC = () => {
                 remarks: values.remarks || null
             };
 
-            await promotions.update(editingPromotion.id, updateData);
+            await api.put(`/hr/services/promotions/${editingPromotion.id}`, updateData);
             message.success('Promotion updated successfully');
             setEditModalVisible(false);
-            form.resetFields();
+      form.resetFields();
             setEditingPromotion(null);
             fetchData();
         } catch (error) {
@@ -139,6 +141,11 @@ const PromotionHistory: React.FC = () => {
 
     const handleBulkAdd = () => {
         bulkForm.resetFields();
+        if (selectedEmployee) {
+            bulkForm.setFieldsValue({
+                employee_id: selectedEmployee
+            });
+        }
         setBulkAddModalVisible(true);
         setPromotionForms([{ key: 0 }]);
     };
@@ -241,7 +248,7 @@ const PromotionHistory: React.FC = () => {
                 errorMessage = error.message;
             }
 
-            Modal.error({
+        Modal.error({
                 title: 'Error Adding Promotions',
                 content: errorMessage,
                 maskClosable: true
@@ -286,8 +293,8 @@ const PromotionHistory: React.FC = () => {
         return filtered;
     }, [selectedEmployee, promotionsList]);
 
-    const columns = [
-        {
+  const columns = [
+    {
             title: 'Employee ID',
             dataIndex: 'employee_id',
             key: 'employee_id',
@@ -298,21 +305,21 @@ const PromotionHistory: React.FC = () => {
             dataIndex: 'employee_name',
             key: 'employee_name',
             sorter: (a: Promotion, b: Promotion) => a.employee_name.localeCompare(b.employee_name)
-        },
-        {
-            title: 'From Designation',
-            dataIndex: 'old_designation',
+    },
+    {
+      title: 'From Designation',
+      dataIndex: 'old_designation',
             key: 'old_designation'
-        },
-        {
-            title: 'To Designation',
-            dataIndex: 'new_designation',
+    },
+    {
+      title: 'To Designation',
+      dataIndex: 'new_designation',
             key: 'new_designation'
-        },
-        {
-            title: 'Level',
-            dataIndex: 'level',
-            key: 'level',
+    },
+    {
+      title: 'Level',
+      dataIndex: 'level',
+      key: 'level',
             sorter: (a: Promotion, b: Promotion) => a.level - b.level
         },
         {
@@ -321,20 +328,20 @@ const PromotionHistory: React.FC = () => {
             key: 'effective_date',
             render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
             sorter: (a: Promotion, b: Promotion) => dayjs(a.effective_date).unix() - dayjs(b.effective_date).unix()
-        },
-        {
-            title: 'Remarks',
-            dataIndex: 'remarks',
+    },
+    {
+      title: 'Remarks',
+      dataIndex: 'remarks',
             key: 'remarks'
-        },
-        {
-            title: 'Actions',
-            key: 'actions',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
             render: (_: unknown, record: Promotion) => (
                 <Space size="small">
                     <Button 
                         type="link" 
-                        icon={<WrappedEditOutlined onPointerOverCapture={() => {}} onPointerOutCapture={() => {}} />}
+                        icon={<EditOutlined {...iconProps} />}
                         onClick={() => handleEdit(record)}
                     />
                     <Popconfirm
@@ -343,66 +350,67 @@ const PromotionHistory: React.FC = () => {
                         okText="Yes"
                         cancelText="No"
                     >
-                        <Button type="link" danger icon={<WrappedDeleteOutlined onPointerOverCapture={() => {}} onPointerOutCapture={() => {}} />} />
+                        <Button type="link" danger icon={<DeleteOutlined {...iconProps} />} />
                     </Popconfirm>
                 </Space>
             )
-        }
-    ];
+    }
+  ];
 
-    return (
-        <div style={{ padding: '24px' }}>
+  return (
+    <div style={{ padding: '24px' }}>
             <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Space>
-                    <Select
+          <Select
                         style={{ width: 300 }}
                         placeholder="Filter by Employee"
                         allowClear
                         value={selectedEmployee}
                         onChange={handleEmployeeSelect}
-                        options={employees.map(emp => ({
-                            value: emp.employee_id,
-                            label: `${emp.employee_id} - ${emp.employee_name}`
-                        }))}
+            options={employees.map(emp => ({
+              value: emp.employee_id,
+              label: `${emp.employee_id} - ${emp.employee_name}`
+            }))}
                     />
                 </Space>
                 <Space>
                     <Button 
                         type="primary" 
-                        icon={<WrappedPlusOutlined onPointerOverCapture={() => {}} onPointerOutCapture={() => {}} />}
+                        icon={<PlusOutlined {...iconProps} />}
                         onClick={handleAdd}
                         disabled={!selectedEmployee}
                     >
                         Add Promotion
                     </Button>
-                    <Button 
-                        type="primary" 
-                        icon={<WrappedPlusOutlined onPointerOverCapture={() => {}} onPointerOutCapture={() => {}} />}
+          <Button 
+            type="primary"
+                        icon={<PlusOutlined {...iconProps} />}
                         onClick={handleBulkAdd}
-                        disabled={!selectedEmployee}
-                    >
-                        Bulk Add
-                    </Button>
+            disabled={!selectedEmployee}
+          >
+                        Bulk Add Promotions
+          </Button>
                 </Space>
-            </div>
+      </div>
 
             {selectedEmployee ? (
-                <Table
+          <Table
                     dataSource={filteredPromotions}
-                    columns={columns}
-                    rowKey="id"
-                    loading={loading}
+            columns={columns}
+            rowKey="id"
+            loading={loading}
                     pagination={{ 
                         pageSize: 10,
                         showSizeChanger: true,
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
+                        showTotal: (total: number, range: [number, number]) => 
+                          `${range[0]}-${range[1]} of ${total} items`
                     }}
                 />
             ) : (
-                <div style={{ textAlign: 'center', padding: '32px', background: '#f5f5f5', borderRadius: '8px' }}>
-                    <p>Please select an employee to view their promotion history</p>
-                </div>
-            )}
+        <div style={{ textAlign: 'center', padding: '32px', background: '#f5f5f5', borderRadius: '8px' }}>
+          <p>Please select an employee to view their promotion history</p>
+        </div>
+      )}
 
             {/* Edit Modal */}
             <Modal
@@ -440,27 +448,29 @@ const PromotionHistory: React.FC = () => {
             </Modal>
 
             {/* Bulk Add Promotions Modal */}
-            <Modal
-                title="Add Multiple Promotions"
+      <Modal
+        title="Add Multiple Promotions"
                 open={bulkAddModalVisible}
                 onOk={handleBulkAddSubmit}
-                onCancel={() => {
+        onCancel={() => {
                     setBulkAddModalVisible(false);
                     bulkForm.resetFields();
                     setPromotionForms([{ key: 0 }]);
                 }}
-                width={800}
-            >
+        width={800}
+      >
                 <Form form={bulkForm} layout="vertical">
                     <Form.Item
                         name="employee_id"
                         label="Employee"
                         rules={[{ required: true, message: 'Please select an employee' }]}
+                        initialValue={selectedEmployee}
                     >
                         <Select
                             showSearch
                             placeholder="Select an employee"
                             optionFilterProp="children"
+                            disabled={true}
                         >
                             {employees.map(emp => (
                                 <Select.Option key={emp.employee_id} value={emp.employee_id}>
@@ -472,30 +482,30 @@ const PromotionHistory: React.FC = () => {
 
                     {promotionForms.map(({ key }) => (
                         <div key={key} style={{ 
-                            border: '1px solid #f0f0f0', 
-                            padding: '16px', 
-                            marginBottom: '16px',
+              border: '1px solid #f0f0f0', 
+              padding: '16px', 
+              marginBottom: '16px',
                             borderRadius: '4px',
-                            position: 'relative' 
-                        }}>
+              position: 'relative'
+            }}>
                             <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h4>Promotion {key + 1}</h4>
                                 {promotionForms.length > 1 && (
                                     <Button type="link" danger onClick={() => removePromotionForm(key)}>
-                                        Remove
-                                    </Button>
-                                )}
-                            </div>
+                    Remove
+                  </Button>
+                )}
+              </div>
 
-                            <Form.Item
+              <Form.Item
                                 name={`effective_date_${key}`}
-                                label="Effective Date"
-                                rules={[{ required: true, message: 'Please select effective date' }]}
-                            >
-                                <DatePicker style={{ width: '100%' }} />
-                            </Form.Item>
+                label="Effective Date"
+                rules={[{ required: true, message: 'Please select effective date' }]}
+              >
+                <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
 
-                            <Form.Item
+              <Form.Item
                                 name={`from_designation_${key}`}
                                 label="From Designation"
                                 rules={[{ required: true, message: 'Please select from designation' }]}
@@ -515,9 +525,9 @@ const PromotionHistory: React.FC = () => {
 
                             <Form.Item
                                 name={`to_designation_${key}`}
-                                label="To Designation"
-                                rules={[{ required: true, message: 'Please select to designation' }]}
-                            >
+                label="To Designation"
+                rules={[{ required: true, message: 'Please select to designation' }]}
+              >
                                 <Select
                                     showSearch
                                     placeholder="Select to designation"
@@ -526,35 +536,127 @@ const PromotionHistory: React.FC = () => {
                                     {designations.map(des => (
                                         <Select.Option key={des.designation_id} value={des.designation_id}>
                                             {des.designation}
-                                        </Select.Option>
-                                    ))}
-                                </Select>
-                            </Form.Item>
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
 
-                            <Form.Item
+              <Form.Item
                                 name={`level_${key}`}
-                                label="Level"
-                                rules={[{ required: true, message: 'Please enter level' }]}
-                            >
+                label="Level"
+                rules={[{ required: true, message: 'Please enter level' }]}
+              >
                                 <InputNumber style={{ width: '100%' }} min={1} />
-                            </Form.Item>
+              </Form.Item>
 
-                            <Form.Item
+              <Form.Item
                                 name={`remarks_${key}`}
-                                label="Remarks"
-                            >
-                                <Input.TextArea rows={2} />
-                            </Form.Item>
-                        </div>
-                    ))}
+                label="Remarks"
+              >
+                <Input.TextArea rows={2} />
+              </Form.Item>
+            </div>
+          ))}
 
-                    <Button type="dashed" onClick={addPromotionForm} block>
-                        + Add Another Promotion
-                    </Button>
-                </Form>
-            </Modal>
-        </div>
-    );
+            <Button type="dashed" onClick={addPromotionForm} block>
+              + Add Another Promotion
+            </Button>
+        </Form>
+      </Modal>
+
+            {/* Add Single Promotion Modal */}
+      <Modal
+                title="Add Promotion"
+                open={addModalVisible}
+                onOk={handleAddSubmit}
+                onCancel={() => {
+                    setAddModalVisible(false);
+                    form.resetFields();
+                }}
+            >
+                <Form form={form} layout="vertical">
+                    <Form.Item
+                        name="employee_id"
+                        label="Employee"
+                        rules={[{ required: true, message: 'Please select an employee' }]}
+                        initialValue={selectedEmployee}
+                    >
+                        <Select
+                            showSearch
+                            placeholder="Select an employee"
+                            optionFilterProp="children"
+                            disabled={true}
+                        >
+                            {employees.map(emp => (
+                                <Select.Option key={emp.employee_id} value={emp.employee_id}>
+                                    {`${emp.employee_id} - ${emp.employee_name}`}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+
+          <Form.Item
+            name="effective_date"
+            label="Effective Date"
+                        rules={[{ required: true, message: 'Please select effective date' }]}
+                    >
+                        <DatePicker style={{ width: '100%' }} />
+                    </Form.Item>
+
+                    <Form.Item
+                        name="from_designation_id"
+                        label="From Designation"
+                        rules={[{ required: true, message: 'Please select from designation' }]}
+                    >
+                        <Select
+                            showSearch
+                            placeholder="Select from designation"
+                            optionFilterProp="children"
+                        >
+                            {designations.map(des => (
+                                <Select.Option key={des.designation_id} value={des.designation_id}>
+                                    {des.designation}
+                                </Select.Option>
+                            ))}
+                        </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="to_designation_id"
+            label="To Designation"
+                        rules={[{ required: true, message: 'Please select to designation' }]}
+                    >
+                        <Select
+                            showSearch
+                            placeholder="Select to designation"
+                            optionFilterProp="children"
+                        >
+                            {designations.map(des => (
+                                <Select.Option key={des.designation_id} value={des.designation_id}>
+                                    {des.designation}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="level"
+            label="Level"
+            rules={[{ required: true, message: 'Please enter level' }]}
+          >
+                        <InputNumber style={{ width: '100%' }} min={1} />
+          </Form.Item>
+
+          <Form.Item
+            name="remarks"
+            label="Remarks"
+          >
+                        <Input.TextArea rows={4} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  );
 };
 
 export default PromotionHistory; 

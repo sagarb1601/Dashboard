@@ -23,6 +23,7 @@ import {
   TablePagination,
   IconButton,
   Tooltip,
+  Typography,
 } from '@mui/material';
 import ClearIcon from '@mui/icons-material/Clear';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -65,7 +66,8 @@ const GENDER_OPTIONS = [
 
 const CENTRE_OPTIONS = [
   { value: 'KP', label: 'KP' },
-  { value: 'EC', label: 'EC' },
+  { value: 'EC1', label: 'EC1' },
+  { value: 'EC2', label: 'EC2' },
 ];
 
 interface FilterState {
@@ -73,7 +75,16 @@ interface FilterState {
   designation: string;
   group: string;
   level: string;
+  gender: string;
 }
+
+const initialFilters: FilterState = {
+  search: '',
+  designation: '',
+  group: '',
+  level: '',
+  gender: ''
+};
 
 const Employees: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -106,12 +117,7 @@ const Employees: React.FC = () => {
   });
   
   // Combined filter state
-  const [filters, setFilters] = useState<FilterState>({
-    search: '',
-    designation: '',
-    group: '',
-    level: ''
-  });
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
 
   // Memoized filter function with better type safety
   const applyFilters = useCallback((employeeList: Employee[], currentFilters: FilterState): Employee[] => {
@@ -133,7 +139,10 @@ const Employees: React.FC = () => {
       const levelMatch = !currentFilters.level || 
         emp.level === Number(currentFilters.level);
 
-      return searchMatch && designationMatch && groupMatch && levelMatch;
+      const genderMatch = !currentFilters.gender || 
+        emp.gender === currentFilters.gender;
+
+      return searchMatch && designationMatch && groupMatch && levelMatch && genderMatch;
     });
   }, []);
 
@@ -153,7 +162,8 @@ const Employees: React.FC = () => {
       search: '',
       designation: '',
       group: '',
-      level: ''
+      level: '',
+      gender: ''
     };
     updateFilters(emptyFilters);
   }, [updateFilters]);
@@ -381,21 +391,13 @@ const Employees: React.FC = () => {
       </Box>
 
       {/* Improved Search and Filter Section */}
-      <Box sx={{ mb: 3, display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
-          label="Search by ID or Name"
-          variant="outlined"
           size="small"
+          placeholder="Search by ID or Name"
           value={filters.search}
-          onChange={(e) => updateFilters({ search: e.target.value.toLowerCase() })}
-          sx={{ minWidth: 250 }}
-          InputProps={{
-            endAdornment: filters.search && (
-              <IconButton size="small" onClick={() => updateFilters({ search: '' })}>
-                <ClearIcon fontSize="small" />
-              </IconButton>
-            )
-          }}
+          onChange={(e) => updateFilters({ search: e.target.value })}
+          sx={{ minWidth: 200 }}
         />
         
         <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -415,11 +417,11 @@ const Employees: React.FC = () => {
         </FormControl>
 
         <FormControl size="small" sx={{ minWidth: 200 }}>
-          <InputLabel>Technical Group</InputLabel>
+          <InputLabel>Group</InputLabel>
           <Select
             value={filters.group}
             onChange={(e) => updateFilters({ group: e.target.value })}
-            label="Technical Group"
+            label="Group"
           >
             <MenuItem value="">All Groups</MenuItem>
             {technicalGroups.map((g) => (
@@ -430,7 +432,7 @@ const Employees: React.FC = () => {
           </Select>
         </FormControl>
 
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: 100 }}>
           <InputLabel>Level</InputLabel>
           <Select
             value={filters.level}
@@ -448,8 +450,23 @@ const Employees: React.FC = () => {
           </Select>
         </FormControl>
         
-        {/* Improved Clear Filters Button */}
-        {(filters.search || filters.designation || filters.group || filters.level) && (
+        <FormControl size="small" sx={{ minWidth: 100 }}>
+          <InputLabel>Gender</InputLabel>
+          <Select
+            value={filters.gender}
+            onChange={(e) => updateFilters({ gender: e.target.value })}
+            label="Gender"
+          >
+            <MenuItem value="">All</MenuItem>
+            {GENDER_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {(filters.search || filters.designation || filters.group || filters.level || filters.gender) && (
           <Tooltip title="Clear all filters">
             <Button
               size="small"
@@ -463,62 +480,391 @@ const Employees: React.FC = () => {
         )}
       </Box>
 
-      <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 300px)' }}>
-        <Table stickyHeader>
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          display: 'flex',
+          flexDirection: 'column',
+          bgcolor: 'transparent'
+        }}
+      >
+        <TableContainer>
+          <Table>
           <TableHead>
             <TableRow>
-              <TableCell>Employee ID</TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Join Date</TableCell>
-              <TableCell>Designation</TableCell>
-              <TableCell>Technical Group</TableCell>
-              <TableCell>Gender</TableCell>
-              <TableCell>Level</TableCell>
-              <TableCell>Centre</TableCell>
-              <TableCell>Actions</TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '8%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1,
+                    '&:first-of-type': {
+                      borderTopLeftRadius: '8px',
+                    },
+                    '&:last-child': {
+                      borderTopRightRadius: '8px',
+                    }
+                  }}
+                >
+                  Employee ID
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '15%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Name
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '10%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Join Date
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '20%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Designation
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '10%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Group
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '8%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Gender
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '7%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Level
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '7%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Centre
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    py: 2,
+                    px: 2,
+                    backgroundColor: theme => theme.palette.primary.main,
+                    color: 'white',
+                    fontWeight: 600,
+                    width: '5%',
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 1
+                  }}
+                >
+                  Actions
+                </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {filteredEmployees
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-              .map((employee) => (
-                <TableRow key={employee.employee_id}>
-                  <TableCell>{employee.employee_id}</TableCell>
-                  <TableCell>{employee.employee_name}</TableCell>
-                  <TableCell>{new Date(employee.join_date).toLocaleDateString()}</TableCell>
-                  <TableCell>{employee.designation_full} ({employee.designation})</TableCell>
-                  <TableCell>{employee.group_name}</TableCell>
-                  <TableCell>{employee.gender}</TableCell>
-                  <TableCell>{employee.level}</TableCell>
-                  <TableCell>{employee.centre}</TableCell>
+                .map((employee, index) => (
+                  <TableRow 
+                    key={employee.employee_id}
+                    hover
+                    sx={{
+                      backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa',
+                      '&:hover': {
+                        backgroundColor: '#f5f5f5 !important',
+                      },
+                      '& td': {
+                        py: 2,
+                        px: 2,
+                        borderBottom: '1px solid #e0e0e0',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }
+                    }}
+                  >
+                    <TableCell sx={{ fontWeight: 500, color: theme => theme.palette.primary.main }}>
+                      {employee.employee_id}
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>
+                      {employee.employee_name}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(employee.join_date).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        gap: 0.5
+                      }}>
+                        <Box sx={{ fontWeight: 500 }}>{employee.designation_full}</Box>
+                        <Box sx={{ 
+                          color: 'text.secondary', 
+                          fontSize: '0.875rem',
+                          backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                          px: 1,
+                          py: 0.25,
+                          borderRadius: 1,
+                          display: 'inline-block',
+                          width: 'fit-content'
+                        }}>
+                          {employee.designation}
+                        </Box>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip
+                        title={
+                          <Box sx={{ p: 1 }}>
+                            <Typography variant="subtitle2">{employee.group_name}</Typography>
+                            {employee.group_description && (
+                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 0.5 }}>
+                                {employee.group_description}
+                              </Typography>
+                            )}
+                          </Box>
+                        }
+                        arrow
+                      >
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: 0.5
+                        }}>
+                          <Box sx={{
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            color: theme => theme.palette.primary.main,
+                            fontSize: '0.875rem',
+                            fontWeight: 500,
+                            cursor: 'help'
+                          }}>
+                            {employee.group_name}
+                          </Box>
+                        </Box>
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: employee.gender === 'M' ? '#e3f2fd' : '#fce4ec',
+                        color: employee.gender === 'M' ? '#1565c0' : '#c2185b',
+                        width: 'fit-content',
+                        fontSize: '0.875rem',
+                        fontWeight: 500
+                      }}>
+                        {employee.gender === 'M' ? 'Male' : 'Female'}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Box sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: '#e8f5e9',
+                        color: '#2e7d32',
+                        width: 'fit-content',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        mx: 'auto'
+                      }}>
+                        {employee.level}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: '#fff3e0',
+                        color: '#f57c00',
+                        width: 'fit-content',
+                        fontSize: '0.875rem',
+                        fontWeight: 500
+                      }}>
+                        {employee.centre}
+                      </Box>
+                    </TableCell>
                   <TableCell>
                     <Button 
                       variant="contained" 
                       color="primary" 
                       onClick={() => handleOpen(employee)}
                       size="small"
+                        sx={{ 
+                          minWidth: 'unset',
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: 1.5,
+                          textTransform: 'none',
+                          boxShadow: 'none',
+                          '&:hover': {
+                            boxShadow: 1
+                          }
+                        }}
                     >
                       Edit
                     </Button>
                   </TableCell>
                 </TableRow>
             ))}
+              {filteredEmployees.length === 0 && (
+                <TableRow>
+                  <TableCell 
+                    colSpan={9} 
+                    align="center" 
+                    sx={{ 
+                      py: 8,
+                      fontSize: '1rem',
+                      color: 'text.secondary',
+                      borderBottom: 'none'
+                    }}
+                  >
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Box sx={{ fontSize: '3rem', opacity: 0.3 }}>🔍</Box>
+                      No employees found
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              )}
           </TableBody>
         </Table>
       </TableContainer>
 
+        <Box sx={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'white',
+          px: 2,
+          py: 1
+        }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {filteredEmployees.length} of {employees.length} employees
+          </Typography>
+
       <TablePagination
         component="div"
         count={filteredEmployees.length}
+            rowsPerPage={10}
         page={page}
-        onPageChange={(e, newPage) => setPage(newPage)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(parseInt(e.target.value, 10));
+            onPageChange={(event, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(event) => {
+              setRowsPerPage(parseInt(event.target.value, 10));
           setPage(0);
         }}
-        rowsPerPageOptions={[10, 25, 50, 100]}
-      />
+            rowsPerPageOptions={[10]}
+            sx={{
+              border: 'none',
+              m: 0,
+              p: 0,
+              '.MuiTablePagination-toolbar': {
+                minHeight: 'auto',
+                p: 0
+              }
+            }}
+          />
+        </Box>
+      </Paper>
 
       <Dialog open={open} onClose={handleClose}>
         <DialogTitle>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</DialogTitle>

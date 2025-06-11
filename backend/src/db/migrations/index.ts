@@ -32,9 +32,11 @@ const migrations = [
   '035_fix_business_entities.sql',
   '036_fix_group_mappings.sql',
   '037_fix_purchase_orders.sql',
+  '038_fix_entity_type_links.sql',
   '039_fix_entity_redundancy.sql',
   '040_fix_services_constraint.sql',
-  '041_rename_bd_projects.sql'
+  '041_rename_bd_projects.sql',
+  '044_fix_cascade_delete.sql'
 ];
 
 export async function runMigrations(pool: Pool) {

@@ -11,9 +11,10 @@ import staffRoutes from './routes/admin/staff';
 import departmentsRoutes from './routes/admin/departments';
 import amcRoutes from './routes/amc';
 import authRoutes from './routes/auth';
-import adminRoutes from './routes/admin';
+
 import actsRoutes from './routes/acts';
 import hrRoutes from './routes/hr';
+
 
 const app = express();
 
@@ -50,9 +51,10 @@ app.use('/api/admin', contractorRoutes);
 app.use('/api/admin', staffRoutes);
 app.use('/api/admin', departmentsRoutes);
 app.use('/api/amc', authenticateToken, amcRoutes);
-app.use('/api/admin', adminRoutes);
+
 app.use('/api/acts', authenticateToken, actsRoutes);
 app.use('/api/hr', authenticateToken, hrRoutes);
+
 
 // Login endpoint
 app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
