@@ -21,9 +21,27 @@ router.get(
       const result = await pool.query(
         "SELECT * FROM finance_projects ORDER BY created_at DESC"
       );
+      console.log("YOYO");
       res.json(result.rows);
     } catch (error) {
       console.error("Error fetching projects:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// Get project detail group by Funding Agency
+router.get(
+  "/projects/group-by-funding-agency",
+  authenticateToken,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await pool.query(
+        "SELECT funding_agency, SUM(total_value) AS total_value FROM finance_projects GROUP BY funding_agency"
+      );
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error("Error fetching projects details group by funding agency:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   }

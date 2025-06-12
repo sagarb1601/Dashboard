@@ -192,17 +192,9 @@ const Projects = () => {
       setError('Failed to delete project');
     }
   };
-
-  const drawerWidth = 240;
-
   return (
     <DashboardLayout>
-      <Box sx={{
-          position: "absolute",
-          zIndex: 1000,
-          left: `${drawerWidth}px`,
-          p: 3
-        }}>
+      <Box sx={{ p: 3 }}>
         <Stack spacing={3}>
           {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
           {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}

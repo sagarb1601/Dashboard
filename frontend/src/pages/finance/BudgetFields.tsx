@@ -283,7 +283,8 @@ const BudgetFields = () => {
 
   return (
     <DashboardLayout>
-      <Box sx={{ p: 3, maxWidth: '100%' }}>
+      <Box sx={{ p: 3 }}
+      >
         <Stack spacing={3} sx={{ alignItems: 'flex-start' }}>
           {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
           {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}

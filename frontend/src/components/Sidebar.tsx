@@ -14,6 +14,7 @@ import {
   MonetizationOn as BudgetIcon,
   Assessment as ExpenditureIcon,
   AccountBalanceWallet as GrantIcon,
+  Home as HomeIcon,
   Business as ProjectIcon,
   CalendarToday as CalendarIcon,
   Build as BuildIcon,
@@ -65,6 +66,7 @@ const Sidebar: React.FC = () => {
     switch (userRole) {
       case 'finance':
         return [
+          { text: 'Finance Home', icon: <HomeIcon />, path: '/finance/home' },
           { text: 'Projects', icon: <ProjectIcon />, path: '/finance' },
           { text: 'Budget Fields', icon: <BudgetIcon />, path: '/finance/budget' },
           { text: 'Yearly Budget', icon: <CalendarIcon />, path: '/finance/yearly-budget' },

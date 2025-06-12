@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create transport_vehicles table
-CREATE TABLE transport_vehicles (
+CREATE TABLE IF NOT EXISTS transport_vehicles (
     vehicle_id SERIAL PRIMARY KEY,
     company_name VARCHAR(100) NOT NULL,
     model VARCHAR(100) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE transport_vehicles (
 );
 
 -- Create vehicle_servicing table
-CREATE TABLE vehicle_servicing (
+CREATE TABLE IF NOT EXISTS vehicle_servicing (
     service_id SERIAL PRIMARY KEY,
     vehicle_id INTEGER REFERENCES transport_vehicles(vehicle_id) ON DELETE CASCADE,
     service_date DATE NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE vehicle_servicing (
 );
 
 -- Create vehicle_insurance table
-CREATE TABLE vehicle_insurance (
+CREATE TABLE IF NOT EXISTS vehicle_insurance (
     insurance_id SERIAL PRIMARY KEY,
     vehicle_id INTEGER REFERENCES transport_vehicles(vehicle_id) ON DELETE CASCADE,
     insurance_provider VARCHAR(100) NOT NULL,

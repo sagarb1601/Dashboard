@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import DashboardLayout from './components/DashboardLayout';
 import BudgetFields from './pages/finance/BudgetFields';
 import Projects from './pages/finance/Projects';
+import FinanceHome from './pages/finance/FinanceHome';
 import Expenditure from './pages/finance/Expenditure';
 import GrantReceived from './pages/finance/GrantReceived';
 import YearlyBudget from './pages/finance/YearlyBudget';
@@ -141,39 +142,46 @@ const App: React.FC = () => {
             } />
 
             {/* Finance routes */}
+            <Route path="/finance/home" element={
+              <ProtectedRoute requireRole="finance">
+                {/* <DashboardLayout> */}
+                  <FinanceHome />
+                {/* </DashboardLayout> */}
+              </ProtectedRoute>
+            } />
             <Route path="/finance" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <Projects />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
             <Route path="/finance/budget" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <BudgetFields />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
             <Route path="/finance/yearly-budget" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <YearlyBudget />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
             <Route path="/finance/expenditure" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <Expenditure />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
             <Route path="/finance/grant-received" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <GrantReceived />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
 
@@ -377,9 +385,9 @@ const App: React.FC = () => {
             } />
             <Route path="/business/clients" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/* <DashboardLayout> */}
                   <ClientsPage />
-                </DashboardLayout>
+                {/* </DashboardLayout> */}
               </ProtectedRoute>
             } />
             <Route path="/business/purchase-orders" element={
