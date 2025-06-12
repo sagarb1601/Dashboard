@@ -8,12 +8,6 @@ import {
   DialogActions,
   TextField,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   IconButton,
   FormControl,
   InputLabel,
@@ -27,6 +21,8 @@ import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/ico
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 import DashboardLayout from '../../components/DashboardLayout';
+import { Table as AntTable } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 
 interface Project {
   project_id: number;
@@ -38,7 +34,16 @@ interface Project {
   funding_agency: string;
   duration_years: number;
   created_at: string;
+  group_id: number;
+  technical_group_name: string;
 }
+
+interface TechnicalGroup {
+  group_id: number;
+  group_name: string;
+}
+
+const drawerWidth = 240;
 
 const validationSchema = yup.object({
   project_name: yup.string().required('Project name is required'),
@@ -57,10 +62,14 @@ const validationSchema = yup.object({
     .required('Duration is required')
     .positive('Duration must be positive')
     .integer('Duration must be a whole number'),
+  technical_group_id: yup.number()
+    .required('Technical group is required')
+    .positive('Please select a technical group'),
 });
 
 const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [technicalGroups, setTechnicalGroups] = useState<TechnicalGroup[]>([]);
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [otherAgency, setOtherAgency] = useState('');
@@ -76,6 +85,7 @@ const Projects = () => {
       total_value: '',
       funding_agency: 'MeitY',
       duration_years: 1,
+      technical_group_id: '',
     },
     validationSchema: validationSchema,
     onSubmit: async (values) => {
@@ -86,6 +96,7 @@ const Projects = () => {
           extension_end_date: values.extension_end_date || null,
           total_value: Number(values.total_value),
           duration_years: Number(values.duration_years),
+          group_id: Number(values.technical_group_id),
         };
 
         const url = editingProject 
@@ -120,8 +131,8 @@ const Projects = () => {
     try {
       const response = await fetch('http://localhost:5000/api/finance/projects', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (response.ok) {
         const data = await response.json();
@@ -129,12 +140,29 @@ const Projects = () => {
       }
     } catch (error) {
       console.error('Error fetching projects:', error);
-      setError('Failed to fetch projects');
+    }
+  };
+
+  const fetchTechnicalGroups = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/hr/technical_groups', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTechnicalGroups(data);
+      }
+    } catch (error) {
+      console.error('Error fetching technical groups:', error);
+      setError('Failed to fetch technical groups');
     }
   };
 
   useEffect(() => {
     fetchProjects();
+    fetchTechnicalGroups();
   }, []);
 
   const handleClickOpen = () => {
@@ -159,6 +187,7 @@ const Projects = () => {
       total_value: project.total_value.toString(),
       funding_agency: project.funding_agency,
       duration_years: project.duration_years,
+      technical_group_id: project.group_id?.toString() || '',
     });
     setOpen(true);
   };
@@ -189,13 +218,44 @@ const Projects = () => {
     }
   };
 
+  const columns: ColumnsType<Project> = [
+    { title: 'Project Name', dataIndex: 'project_name', key: 'project_name' },
+    { title: 'Group', dataIndex: 'technical_group_name', key: 'technical_group_name' },
+    { title: 'Start Date', dataIndex: 'start_date', key: 'start_date', render: (date) => new Date(date).toLocaleDateString() },
+    { title: 'End Date', dataIndex: 'end_date', key: 'end_date', render: (date) => new Date(date).toLocaleDateString() },
+    { title: 'Total Value', dataIndex: 'total_value', key: 'total_value', render: (value) => `₹${value.toLocaleString()}` },
+    { title: 'Funding Agency', dataIndex: 'funding_agency', key: 'funding_agency' },
+    { title: 'Duration (Years)', dataIndex: 'duration_years', key: 'duration_years' },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <>
+          <IconButton onClick={() => handleEdit(record)} color="primary">
+            <EditIcon />
+          </IconButton>
+          <IconButton onClick={() => handleDelete(record.project_id)} color="error">
+            <DeleteIcon />
+          </IconButton>
+        </>
+      ),
+    },
+  ];
+
   return (
     <DashboardLayout>
-      <Box sx={{ p: 3 }}>
-        <Stack spacing={3}>
+      <Box sx={{ 
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: "absolute",
+        zIndex: 1000,
+        left: `${drawerWidth}px`,
+        p: 3
+      }}>
+        <Stack spacing={2} sx={{ flex: '0 0 auto' }}>
           {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
           {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
-
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h5" component="h1">Projects</Typography>
             <Button
@@ -206,59 +266,31 @@ const Projects = () => {
               Add Project
             </Button>
           </Box>
-
-          <Paper 
-            elevation={0}
-            sx={{ 
-              p: 3,
-              borderRadius: 2,
-              border: '1px solid #e0e0e0'
-            }}
-          >
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Project Name</TableCell>
-                    <TableCell>Start Date</TableCell>
-                    <TableCell>End Date</TableCell>
-                    <TableCell>Extension Date</TableCell>
-                    <TableCell>Total Value</TableCell>
-                    <TableCell>Funding Agency</TableCell>
-                    <TableCell>Duration (Years)</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {projects.map((project) => (
-                    <TableRow key={project.project_id}>
-                      <TableCell>{project.project_name}</TableCell>
-                      <TableCell>{new Date(project.start_date).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(project.end_date).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        {project.extension_end_date
-                          ? new Date(project.extension_end_date).toLocaleDateString()
-                          : '-'}
-                      </TableCell>
-                      <TableCell>₹{project.total_value.toLocaleString()}</TableCell>
-                      <TableCell>{project.funding_agency}</TableCell>
-                      <TableCell>{project.duration_years}</TableCell>
-                      <TableCell>
-                        <IconButton onClick={() => handleEdit(project)} color="primary">
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton onClick={() => handleDelete(project.project_id)} color="error">
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
         </Stack>
-
+        <Paper 
+          elevation={0}
+          sx={{ 
+            mt: 2,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 2,
+            border: '1px solid #e0e0e0',
+            overflow: 'hidden',
+            bgcolor: '#fff',
+            p: 2
+          }}
+        >
+          <AntTable
+            columns={columns}
+            dataSource={projects}
+            rowKey="project_id"
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
+            scroll={{ x: 'max-content' }}
+            bordered
+            size="middle"
+          />
+        </Paper>
         <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
           <form onSubmit={formik.handleSubmit}>
             <DialogTitle>{editingProject ? 'Edit Project' : 'Add New Project'}</DialogTitle>
@@ -274,6 +306,29 @@ const Projects = () => {
                   error={formik.touched.project_name && Boolean(formik.errors.project_name)}
                   helperText={formik.touched.project_name && formik.errors.project_name}
                 />
+
+                <FormControl fullWidth error={formik.touched.technical_group_id && Boolean(formik.errors.technical_group_id)}>
+                  <InputLabel id="technical-group-label">Group</InputLabel>
+                  <Select
+                    labelId="technical-group-label"
+                    id="technical_group_id"
+                    name="technical_group_id"
+                    value={formik.values.technical_group_id}
+                    onChange={formik.handleChange}
+                    label="Technical Group"
+                  >
+                    {technicalGroups.map((group) => (
+                      <MenuItem key={group.group_id} value={group.group_id}>
+                        {group.group_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {formik.touched.technical_group_id && formik.errors.technical_group_id && (
+                    <Typography color="error" variant="caption">
+                      {formik.errors.technical_group_id}
+                    </Typography>
+                  )}
+                </FormControl>
 
                 <TextField
                   fullWidth

@@ -41,6 +41,8 @@ import Publications from './pages/technical/Publications';
 import PiCopi from './pages/technical/PiCopi'; 
 import Agreements from './pages/business/Agreements';
 import SlaFunds from './pages/business/SlaFunds';
+import EdofcCalendarPage from './pages/edofc/EdofcCalendarPage';
+import EdofcFullCalendarPage from './pages/edofc/EdofcFullCalendarPage';
 
 
 interface ProtectedRouteProps {
@@ -63,6 +65,7 @@ export const getUserHomePath = (role: string): string => {
     case 'acts': return '/acts/courses';
     case 'bd': return '/business/clients';
     case 'tg': return '/technical/project-status';
+    case 'edofc': return '/edofc/calendar';
     default: return '/welcome';
   }
 };
@@ -143,37 +146,37 @@ const App: React.FC = () => {
             {/* Finance routes */}
             <Route path="/finance" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Projects />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/finance/budget" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <BudgetFields />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/finance/yearly-budget" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <YearlyBudget />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/finance/expenditure" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Expenditure />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/finance/grant-received" element={
               <ProtectedRoute requireRole="finance">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <GrantReceived />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
 
@@ -235,8 +238,8 @@ const App: React.FC = () => {
                 <Dashboard />
               </ProtectedRoute>
             } />
-            <Route path="/edoffice" element={
-              <ProtectedRoute requireRole="edoffice">
+            <Route path="/edofc" element={
+              <ProtectedRoute requireRole="edofc">
                 <Dashboard />
               </ProtectedRoute>
             } />
@@ -370,81 +373,81 @@ const App: React.FC = () => {
             } />
             <Route path="/business/entities" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+              {/*  <DashboardLayout>*/}
                   <BusinessEntitiesPage />
-                </DashboardLayout>
+              {/*  </DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/clients" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <ClientsPage />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/purchase-orders" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <PurchaseOrdersPage />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
-            } />
+            } />  
             <Route path="/business/service-details" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <ServiceDetailsPage />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/technical-groups" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <TechnicalGroupMappingPage />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/products" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Products />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/projects" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <BDProjects />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/services" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <BDServices />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />  
             <Route path="/business/agreements" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Agreements />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/business/sla-funds" element={
               <ProtectedRoute requireRole="bd">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <SlaFunds />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
 
 {/* Technical Group routes */}
 <Route path="/technical/projects" element={
               <ProtectedRoute requireRole="tg">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <GroupProjects />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/technical" element={
@@ -454,29 +457,53 @@ const App: React.FC = () => {
             } />
             <Route path="/technical/project-status" element={
               <ProtectedRoute requireRole="tg">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <ProjectStatus />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/technical/events" element={
               <ProtectedRoute requireRole="tg">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Events />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/technical/publications" element={
               <ProtectedRoute requireRole="tg">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <Publications />
-                </DashboardLayout>
+                {/*</DashboardLayout>*/}
               </ProtectedRoute>
             } />
             <Route path="/technical/pi-copi" element={
               <ProtectedRoute requireRole="tg">
-                <DashboardLayout>
+                {/*<DashboardLayout>*/}
                   <PiCopi />
+                {/*</DashboardLayout>*/}
+              </ProtectedRoute>
+            } />
+
+            {/* ED Office routes */}
+
+            <Route path="/edofc" element={
+              <ProtectedRoute requireRole="edofc">
+                <Navigate to="/edofc/calendar" replace />
+              </ProtectedRoute>
+            } /> 
+
+            <Route path="/edofc/calendar" element={
+              <ProtectedRoute requireRole="edofc">
+                <DashboardLayout>
+                  <EdofcCalendarPage />
+                </DashboardLayout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/edofc/full-calendar" element={
+              <ProtectedRoute requireRole="edofc">
+                <DashboardLayout>
+                  <EdofcFullCalendarPage />
                 </DashboardLayout>
               </ProtectedRoute>
             } />

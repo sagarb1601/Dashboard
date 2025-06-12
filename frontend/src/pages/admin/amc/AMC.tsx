@@ -18,10 +18,10 @@ const AMC: React.FC = () => {
         type="card"
       >
         <Tabs.TabPane tab="AMC Providers" key="1">
-          <Providers />
+          <Providers key={activeTab} />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Equipment Mapping" key="2">
-          <AMCMapping />
+          <AMCMapping key={activeTab} />
         </Tabs.TabPane>
       </Tabs>
     </Card>

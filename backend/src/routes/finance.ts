@@ -15,7 +15,10 @@ const pool = new Pool({
 router.get('/projects', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
-      'SELECT * FROM finance_projects ORDER BY created_at DESC'
+      `SELECT p.*, tg.group_name as technical_group_name 
+       FROM finance_projects p
+       LEFT JOIN technical_groups tg ON p.group_id = tg.group_id
+       ORDER BY p.created_at DESC`
     );
     res.json(result.rows);
   } catch (error) {
@@ -113,13 +116,14 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
     total_value,
     funding_agency,
     duration_years,
-    budget_fields
+    budget_fields,
+    group_id
   } = req.body;
 
   try {
     const result = await pool.query(
-      'UPDATE finance_projects SET project_name = $1, start_date = $2, end_date = $3, extension_end_date = $4, total_value = $5, funding_agency = $6, duration_years = $7 WHERE project_id = $8 RETURNING *',
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, id]
+      'UPDATE finance_projects SET project_name = $1, start_date = $2, end_date = $3, extension_end_date = $4, total_value = $5, funding_agency = $6, duration_years = $7, group_id = $8 WHERE project_id = $9 RETURNING *',
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, id]
     );
 
     if (result.rows.length === 0) {
@@ -909,6 +913,166 @@ router.get('/projects/:projectId/yearly-tracking', authenticateToken, async (req
   } catch (error) {
     console.error('Error fetching yearly tracking data:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update grant entries by date
+router.put('/grant-received/:date', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { date } = req.params;
+    const { project_id, received_date, remarks, allocations } = req.body;
+
+    console.log('=== Grant Update Debug ===');
+    console.log('Request params:', { date });
+    console.log('Request body:', {
+      project_id,
+      received_date,
+      remarks,
+      allocations: allocations.map((a: any) => ({
+        field_id: a.field_id,
+        amount: a.amount,
+        amount_type: typeof a.amount,
+        parsed_amount: Number(a.amount),
+        is_valid: !isNaN(Number(a.amount)) && Number(a.amount) > 0
+      }))
+    });
+
+    // Validate project_id
+    if (!project_id || typeof project_id !== 'number') {
+      console.error('Invalid project_id:', project_id);
+      res.status(400).json({ error: 'Invalid project ID' });
+      return;
+    }
+
+    // Validate allocations
+    if (!Array.isArray(allocations) || allocations.length === 0) {
+      console.error('Invalid allocations:', allocations);
+      res.status(400).json({ error: 'Invalid allocations data' });
+      return;
+    }
+
+    // Validate each allocation
+    for (const allocation of allocations) {
+      const amount = Number(allocation.amount);
+      console.log(`Validating allocation:`, {
+        field_id: allocation.field_id,
+        original_amount: allocation.amount,
+        parsed_amount: amount,
+        isNaN: isNaN(amount),
+        isNegative: amount < 0,
+        isZero: amount === 0
+      });
+
+      if (isNaN(amount)) {
+        console.error('Invalid amount (NaN):', allocation);
+        res.status(400).json({ 
+          error: 'Invalid amount',
+          details: { 
+            field_id: allocation.field_id,
+            amount: allocation.amount,
+            reason: 'Amount is not a valid number'
+          }
+        });
+        return;
+      }
+      if (amount <= 0) {
+        console.error('Invalid amount (non-positive):', allocation);
+        res.status(400).json({ 
+          error: 'Invalid amount',
+          details: { 
+            field_id: allocation.field_id,
+            amount: allocation.amount,
+            reason: 'Amount must be positive'
+          }
+        });
+        return;
+      }
+    }
+
+    await client.query('BEGIN');
+
+    // Delete existing grant entries for this date
+    console.log('Deleting existing grants for date:', date);
+    const deleteResult = await client.query(
+      'DELETE FROM grant_received WHERE project_id = $1 AND received_date = $2 RETURNING *',
+      [project_id, date]
+    );
+    console.log('Deleted records:', deleteResult.rows);
+
+    // Insert new grant entries
+    for (const allocation of allocations) {
+      const amount = Number(allocation.amount);
+      if (amount > 0) {
+        const insertQuery = `
+          INSERT INTO grant_received (
+            project_id, 
+            field_id, 
+            received_date, 
+            amount, 
+            remarks
+          ) VALUES ($1, $2, $3, $4, $5)
+          RETURNING *;
+        `;
+        
+        console.log('Inserting grant:', {
+          project_id,
+          field_id: allocation.field_id,
+          received_date,
+          amount,
+          remarks
+        });
+
+        try {
+          const insertResult = await client.query(insertQuery, [
+            project_id,
+            allocation.field_id,
+            received_date,
+            amount,
+            remarks
+          ]);
+          console.log('Inserted record:', insertResult.rows[0]);
+        } catch (error) {
+          console.error('Error inserting grant:', {
+            error,
+            params: {
+              project_id,
+              field_id: allocation.field_id,
+              received_date,
+              amount,
+              remarks
+            }
+          });
+          throw error;
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Grant entries updated successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error updating grant entries:', error);
+    
+    // Check for specific database errors
+    if (error instanceof Error) {
+      if (error.message.includes('violates not-null constraint')) {
+        res.status(400).json({ error: 'Invalid data: Required fields cannot be null' });
+        return;
+      }
+      if (error.message.includes('violates check constraint')) {
+        res.status(400).json({ error: 'Invalid amount: Amount must be positive' });
+        return;
+      }
+      if (error.message.includes('violates foreign key constraint')) {
+        res.status(400).json({ error: 'Invalid field_id or project_id' });
+        return;
+      }
+    }
+    
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update grant entries' });
+  } finally {
+    client.release();
   }
 });
 

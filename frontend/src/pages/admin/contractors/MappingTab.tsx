@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Form, Select, DatePicker, Button, Table, Tag, message, Card, Space, Alert, Modal, Tabs, List, Typography, Input } from 'antd';
 import type { AntdIconProps } from '@ant-design/icons/lib/components/AntdIcon';
 import { PlusOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import type { TableProps } from 'antd/es/table';
-import type { Dayjs } from 'dayjs';
-import type { Rule } from 'antd/es/form';
+import dayjs, { Dayjs } from 'dayjs';
+import type { Rule, RuleRender } from 'antd/es/form';
 import type { DatePickerProps } from 'antd/es/date-picker';
-import dayjs from 'dayjs';
 import { contractors, departments, mappings } from '../../../utils/api';
 import { Contractor, Department, ContractorMapping, mappingSchema } from '../../../types/contractor';
 import type { SelectProps } from 'antd/es/select';
 import { useNavigate } from 'react-router-dom';
 import { IconWrapper } from '../../../utils/IconWrapper';
+import type { Moment } from 'moment';
+import moment from 'moment';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -66,51 +67,37 @@ const MappingTab: React.FC = () => {
   const [editingMapping, setEditingMapping] = useState<ContractorMapping | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const navigate = useNavigate();
+  const [activeMappings, setActiveMappings] = useState<{[key: number]: boolean}>({});
 
-  // Fetch initial data
+  // Modify checkActiveMappings to only track department mappings
+  const checkActiveMappings = useCallback((mappings: ContractorMapping[]) => {
+    const deptActiveMap: {[key: number]: boolean} = {};
+    
+    mappings.forEach(mapping => {
+      if (mapping.status === 'ACTIVE') {
+        deptActiveMap[mapping.department_id] = true;
+      }
+    });
+    
+    setActiveMappings(deptActiveMap);
+  }, []);
+
+  // Modify fetchData to include active mapping checks
   const fetchData = async () => {
-    console.log('fetchData called');
     setLoading(true);
     try {
-      console.log('Making API calls...');
       const [contractorsRes, departmentsRes, mappingsRes] = await Promise.all([
         contractors.getAll(),
         departments.getAll(),
         mappings.getAll()
       ]);
-
-      console.log('API responses:', {
-        contractors: contractorsRes.data,
-        departments: departmentsRes.data,
-        mappings: mappingsRes.data
-      });
-
-      // Check if the responses are valid
-      if (!Array.isArray(contractorsRes.data)) {
-        throw new Error('Invalid contractors data received');
-      }
-
-      if (!Array.isArray(departmentsRes.data)) {
-        throw new Error('Invalid departments data received');
-      }
-
-      if (!Array.isArray(mappingsRes.data)) {
-        throw new Error('Invalid mappings data received');
-      }
-
       setContractorsList(contractorsRes.data);
       setDepartmentsList(departmentsRes.data);
       setMappingsList(mappingsRes.data);
-
-      console.log('State updated with:', {
-        contractors: contractorsRes.data,
-        departments: departmentsRes.data,
-        mappings: mappingsRes.data
-      });
-
+      checkActiveMappings(mappingsRes.data);
     } catch (error) {
-      console.error('Error loading data:', error);
-      message.error(error instanceof Error ? error.message : 'Failed to load data');
+      console.error('Error fetching data:', error);
+      message.error('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -122,25 +109,28 @@ const MappingTab: React.FC = () => {
   }, []);
 
   const showModal = (department: Department | null) => {
-    console.log('Add Mapping button clicked');
-    console.log('Current state:', {
-      contractorsList,
-      departmentsList,
-      mappingsList,
-      isModalVisible
-    });
-    
     if (!contractorsList || contractorsList.length === 0) {
-      console.log('No contractors available');
-      message.warning('Please add contractors first before creating mappings');
+      Modal.warning({
+        title: 'No Contractors Available',
+        content: 'Please add contractors first before creating mappings'
+      });
       return;
     }
     if (!departmentsList || departmentsList.length === 0) {
-      console.log('No departments available');
-      message.warning('No departments available. Please contact your administrator.');
+      Modal.warning({
+        title: 'No Departments Available',
+        content: 'No departments available. Please contact your administrator.'
+      });
       return;
     }
-    console.log('Opening modal');
+    if (department && activeMappings[department.department_id]) {
+      Modal.warning({
+        title: 'Department Already Mapped',
+        content: 'This department already has an active mapping. Please end the current contract before creating a new one.'
+      });
+      return;
+    }
+
     form.resetFields();
     setSelectedDepartment(department);
     if (department) {
@@ -157,14 +147,27 @@ const MappingTab: React.FC = () => {
   };
 
   const handleDelete = async (contractId: number) => {
-    try {
-      await mappings.delete(contractId);
-      message.success('Mapping deleted successfully');
-      fetchData();
-    } catch (error) {
-      message.error('Failed to delete mapping');
-      console.error('Error deleting mapping:', error);
-    }
+    Modal.confirm({
+      title: 'Delete Mapping',
+      content: 'Are you sure you want to delete this mapping? This action cannot be undone.',
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No, Cancel',
+      onOk: async () => {
+        try {
+          await mappings.delete(contractId);
+          message.success('Mapping deleted successfully');
+          fetchData();
+        } catch (error: any) {
+          const errorMessage = error.response?.data?.message || 'Failed to delete mapping';
+          Modal.error({
+            title: 'Error',
+            content: errorMessage
+          });
+          console.error('Error deleting mapping:', error);
+        }
+      }
+    });
   };
 
   const handleEdit = (record: ContractorMapping) => {
@@ -210,25 +213,38 @@ const MappingTab: React.FC = () => {
   const onFinish = async (values: FormData) => {
     try {
       if (!values.start_date || !values.end_date) {
-        message.error('Please select both start and end dates');
+        Modal.error({
+          title: 'Validation Error',
+          content: 'Please select both start and end dates'
+        });
+        return;
+      }
+
+      // Check for date overlap
+      const startDate = values.start_date.format('YYYY-MM-DD');
+      const endDate = values.end_date.format('YYYY-MM-DD');
+      
+      if (values.start_date.isAfter(values.end_date)) {
+        Modal.error({
+          title: 'Validation Error',
+          content: 'Start date cannot be after end date'
+        });
         return;
       }
 
       const formattedValues = {
         contractor_id: values.contractor_id,
         department_id: values.department_id,
-        start_date: values.start_date.format('YYYY-MM-DD'),
-        end_date: values.end_date.format('YYYY-MM-DD'),
+        start_date: startDate,
+        end_date: endDate,
       };
 
       setSubmitting(true);
 
       if (editingMapping) {
-        // Update existing mapping
         await mappings.update(editingMapping.contract_id, formattedValues);
         message.success('Department mapping updated successfully');
       } else {
-        // Create new mapping
         await mappings.create(formattedValues);
         message.success('Department mapping added successfully');
       }
@@ -238,11 +254,23 @@ const MappingTab: React.FC = () => {
       form.resetFields();
       fetchData();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to save mapping';
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save mapping';
+      
       if (errorMessage.includes('Date range overlaps')) {
-        message.error('This department already has a contract during the selected date range. Please choose different dates.');
+        Modal.error({
+          title: 'Date Range Conflict',
+          content: 'This department already has a contract during the selected date range. Please choose different dates.'
+        });
+      } else if (errorMessage.includes('active mapping')) {
+        Modal.error({
+          title: 'Active Mapping Exists',
+          content: 'This department already has an active mapping. Please end the current contract before creating a new one.'
+        });
       } else {
-        message.error(errorMessage);
+        Modal.error({
+          title: 'Error',
+          content: errorMessage
+        });
       }
       console.error('Error saving mapping:', error);
     } finally {
@@ -414,11 +442,22 @@ const MappingTab: React.FC = () => {
           form={form}
           layout="vertical"
           onFinish={onFinish}
+          validateTrigger={['onChange', 'onBlur']}
         >
           <Form.Item
             name="department_id"
             label="Select Department"
-            rules={[{ required: true, message: 'Please select a department' }]}
+            rules={[
+              { required: true, message: 'Please select a department' },
+              (({ getFieldValue }) => ({
+                validator(_: any, value: any) {
+                  if (value && activeMappings[value]) {
+                    return Promise.reject('This department already has an active mapping');
+                  }
+                  return Promise.resolve();
+                }
+              })) as RuleRender
+            ]}
           >
             <Select
               showSearch
@@ -429,7 +468,8 @@ const MappingTab: React.FC = () => {
               }
               options={departmentsList.map(d => ({
                 value: d.department_id,
-                label: d.department_name
+                label: d.department_name,
+                disabled: activeMappings[d.department_id]
               }))}
               disabled={!!editingMapping}
             />
@@ -438,7 +478,9 @@ const MappingTab: React.FC = () => {
           <Form.Item
             name="contractor_id"
             label="Select Contractor"
-            rules={[{ required: true, message: 'Please select a contractor' }]}
+            rules={[
+              { required: true, message: 'Please select a contractor' }
+            ]}
           >
             <Select
               showSearch
@@ -457,19 +499,38 @@ const MappingTab: React.FC = () => {
           <Form.Item
             name="start_date"
             label="Start Date"
-            rules={[{ required: true, message: 'Please select start date' }]}
+            rules={[
+              { required: true, message: 'Please select start date' }
+            ]}
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker 
+              style={{ width: '100%' }}
+            />
           </Form.Item>
 
           <Form.Item
             name="end_date"
             label="End Date"
-            rules={[{ required: true, message: 'Please select end date' }]}
+            rules={[
+              { required: true, message: 'Please select end date' },
+              (({ getFieldValue }) => ({
+                validator(_: any, value: any) {
+                  const startDate = getFieldValue('start_date');
+                  if (startDate && value && value.isBefore(startDate)) {
+                    return Promise.reject('End date must be after start date');
+                  }
+                  return Promise.resolve();
+                }
+              })) as RuleRender
+            ]}
           >
             <DatePicker 
               style={{ width: '100%' }}
-              disabledDate={disabledEndDate}
+              disabledDate={(current: Moment) => {
+                if (!current) return false;
+                const startDate = form.getFieldValue('start_date');
+                return startDate && current.isBefore(moment(startDate));
+              }}
             />
           </Form.Item>
 

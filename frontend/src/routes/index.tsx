@@ -8,6 +8,7 @@ import Services from "../pages/hr/services/Services";
 import Training from "../pages/hr/Training";
 import Recruitment from "../pages/hr/Recruitment";
 import Manpower from "../pages/hr/Manpower";
+import EdofcCalendarPage from '../pages/edofc/EdofcCalendarPage';
 
 export const router = createBrowserRouter([
   {
@@ -41,7 +42,11 @@ export const router = createBrowserRouter([
       {
         path: "/hr/manpower",
         element: <Manpower />,
-      }
+      },
+      {
+        path: '/edofc/calendar',
+        element: <EdofcCalendarPage />,
+      },
     ],
   },
   {

@@ -7,6 +7,12 @@ export interface Staff {
   date_of_leaving: string | null;
   status: 'ACTIVE' | 'INACTIVE';
   gender: 'MALE' | 'FEMALE' | 'OTHER';
+  salary_entries?: Array<{
+    salary_id: number;
+    payment_date: string;
+    net_salary: number;
+    status: 'PAID' | 'PENDING';
+  }>;
 }
 
 export interface Salary {

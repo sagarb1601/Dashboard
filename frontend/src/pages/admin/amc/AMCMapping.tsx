@@ -8,9 +8,13 @@ import {
   Space,
   message,
   Select,
-  DatePicker
+  DatePicker,
+  Tag,
+  InputNumber,
+  Tooltip
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import type { Key } from 'antd/es/table/interface';
 import api, { amcContracts } from '../../../utils/api';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
@@ -20,6 +24,7 @@ const { RangePicker } = DatePicker;
 interface Equipment {
   equipment_id: number;
   equipment_name: string;
+  has_active_mapping?: boolean;
 }
 
 interface Provider {
@@ -35,9 +40,9 @@ interface AMCMapping {
   end_date: string;
   amc_value: number;
   remarks: string;
+  created_at: string;
   equipment_name: string;
   amcprovider_name: string;
-  created_at: string;
 }
 
 const EQUIPMENT_TYPES = [
@@ -63,23 +68,59 @@ const AMCMappingComponent: React.FC = () => {
 
   const fetchData = async () => {
     try {
+      const token = localStorage.getItem('token');
+      console.log('Authentication status:', {
+        hasToken: !!token,
+        tokenLength: token?.length
+      });
+
       console.log('Fetching AMC data...');
-      const [providersRes, mappingsRes, equipmentsRes] = await Promise.all([
+      const [providersRes, contractsResponse, equipmentsRes] = await Promise.all([
         api.get('/amc/providers'),
         amcContracts.getAll(),
         api.get('/amc/equipments')
       ]);
 
-      console.log('Providers data:', providersRes.data);
-      console.log('Mappings data:', mappingsRes.data);
-      console.log('Equipments data:', equipmentsRes.data);
+      console.log('API Responses:', {
+        providers: providersRes.data,
+        contracts: contractsResponse.data,
+        equipments: equipmentsRes.data
+      });
 
-      if (Array.isArray(providersRes.data)) setProviders(providersRes.data);
-      if (Array.isArray(mappingsRes.data)) setMappings(mappingsRes.data);
-      if (Array.isArray(equipmentsRes.data)) setEquipments(equipmentsRes.data);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-      message.error('Failed to fetch data');
+      const providers = providersRes.data;
+      const equipments = equipmentsRes.data;
+      const mappings = Array.isArray(contractsResponse.data) ? contractsResponse.data : [];
+
+      // Enrich mappings with equipment and provider names
+      const enrichedMappings = mappings.map(mapping => {
+        const equipment = equipments.find((e: any) => e.equipment_id === mapping.equipment_id);
+        const provider = providers.find((p: any) => p.amcprovider_id === mapping.amcprovider_id);
+        
+        console.log('Mapping enrichment:', {
+          mapping,
+          foundEquipment: equipment,
+          foundProvider: provider
+        });
+
+        return {
+          ...mapping,
+          equipment_name: equipment?.equipment_name || 'Unknown Equipment',
+          amcprovider_name: provider?.amcprovider_name || 'Unknown Provider'
+        };
+      });
+
+      console.log('Final enriched mappings:', enrichedMappings);
+
+      setMappings(enrichedMappings);
+      setProviders(providers);
+      setEquipments(equipments);
+    } catch (error: any) {
+      console.error('Error fetching data:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      message.error('Failed to fetch AMC mappings. Please try again later.');
     }
   };
 
@@ -96,66 +137,120 @@ const AMCMappingComponent: React.FC = () => {
   const handleEdit = (record: AMCMapping) => {
     setEditingMapping(record);
     form.setFieldsValue({
-      ...record,
-      contract_period: [dayjs(record.start_date), dayjs(record.end_date)]
+      equipment_id: record.equipment_id,
+      amcprovider_id: record.amcprovider_id,
+      contract_period: [dayjs(record.start_date), dayjs(record.end_date)],
+      amc_value: record.amc_value,
+      remarks: record.remarks
     });
     setIsModalVisible(true);
   };
 
   const handleDelete = async (id: number) => {
     try {
-      console.log('Delete request starting for contract:', id);
-      
-      const response = await amcContracts.delete(id);
-      console.log('Delete API response:', response);
-      
-      if (response.status === 200) {
-        await fetchData(); // Refresh the data after successful deletion
-        return true;
-      }
-      
-      throw new Error(response.data?.message || 'Failed to delete contract');
+      await amcContracts.delete(id);
+      message.success('AMC mapping deleted successfully');
+      await fetchData();
     } catch (error: any) {
-      console.error('Delete operation error:', error);
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
-                          error.message || 
-                          'Failed to delete contract';
+      console.error('Error deleting mapping:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to delete AMC mapping. Please try again later.';
       message.error(errorMessage);
-      return false;
     }
   };
 
-  const handleSubmit = async (values: any) => {
-    setLoading(true);
+  const handleSubmit = async () => {
     try {
+      const values = await form.validateFields();
+      console.log('Raw form values:', values);
+
+      // Check if contract_period exists and has both dates
+      if (!values.contract_period || !Array.isArray(values.contract_period) || values.contract_period.length !== 2) {
+        message.error('Please select both start and end dates');
+        return;
+      }
+
       const [startDate, endDate] = values.contract_period;
+      if (!startDate || !endDate) {
+        message.error('Please select both start and end dates');
+        return;
+      }
+
+      // Log the date objects
+      console.log('Date objects:', {
+        startDate: startDate?.toDate(),
+        endDate: endDate?.toDate(),
+        startDateType: typeof startDate,
+        endDateType: typeof endDate
+      });
+
       const data = {
-        equipment_id: values.equipment_id,
-        amcprovider_id: values.amcprovider_id,
+        equipment_id: parseInt(values.equipment_id),
+        amcprovider_id: parseInt(values.amcprovider_id),
         start_date: startDate.format('YYYY-MM-DD'),
         end_date: endDate.format('YYYY-MM-DD'),
         amc_value: parseFloat(values.amc_value),
         remarks: values.remarks || ''
       };
 
-      console.log('Submitting data:', data);
+      console.log('Submitting data to API:', data);
 
       if (editingMapping) {
-        await amcContracts.update(editingMapping.amccontract_id, data);
-        message.success('Mapping updated successfully');
+        console.log('Updating existing mapping:', editingMapping.amccontract_id);
+        const response = await amcContracts.update(editingMapping.amccontract_id, data);
+        console.log('Update response:', response);
+        message.success('AMC mapping updated successfully');
       } else {
-        await amcContracts.create(data);
-        message.success('Mapping added successfully');
+        console.log('Creating new mapping');
+        const response = await amcContracts.create(data);
+        console.log('Create response:', response);
+        message.success('AMC mapping added successfully');
       }
+
       setIsModalVisible(false);
       form.resetFields();
-      fetchData();
-    } catch (error) {
-      console.error('Failed to save mapping:', error);
-      message.error('Failed to save mapping');
-    } finally {
-      setLoading(false);
+      await fetchData();
+    } catch (error: any) {
+      console.error('Error saving mapping:', {
+        error,
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+
+      // Extract error message from response
+      let errorMessage = 'Failed to save AMC mapping. Please try again.';
+      if (error.response?.data) {
+        const { message: serverMessage, details } = error.response.data;
+        errorMessage = serverMessage;
+        if (details) {
+          errorMessage += `: ${details}`;
+        }
+      }
+
+      // Show error message in popup
+      message.error({
+        content: errorMessage,
+        duration: 5, // Show for 5 seconds
+        style: {
+          marginTop: '20vh',
+        },
+      });
+    }
+  };
+
+  const getStatus = (endDate: string): 'ACTIVE' | 'INACTIVE' => {
+    return dayjs(endDate).isAfter(dayjs()) ? 'ACTIVE' : 'INACTIVE';
+  };
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'green';
+      case 'INACTIVE':
+        return 'red';
+      default:
+        return 'default';
     }
   };
 
@@ -164,13 +259,13 @@ const AMCMappingComponent: React.FC = () => {
       title: 'Equipment',
       dataIndex: 'equipment_name',
       key: 'equipment_name',
-      sorter: (a, b) => a.equipment_name.localeCompare(b.equipment_name),
+      sorter: (a, b) => (a.equipment_name || '').localeCompare(b.equipment_name || ''),
     },
     {
       title: 'Provider',
       dataIndex: 'amcprovider_name',
       key: 'amcprovider_name',
-      sorter: (a, b) => a.amcprovider_name.localeCompare(b.amcprovider_name),
+      sorter: (a, b) => (a.amcprovider_name || '').localeCompare(b.amcprovider_name || ''),
     },
     {
       title: 'Start Date',
@@ -188,62 +283,66 @@ const AMCMappingComponent: React.FC = () => {
       title: 'AMC Value',
       dataIndex: 'amc_value',
       key: 'amc_value',
-      render: (value: number) => `₹${value.toLocaleString()}`,
-      sorter: (a, b) => a.amc_value - b.amc_value,
+      render: (value: number, record: AMCMapping) => (
+        <Tooltip 
+          title={record.remarks ? `Remarks: ${record.remarks}` : 'No remarks'} 
+          placement="top"
+        >
+          <span>₹ {value.toLocaleString('en-IN')}</span>
+        </Tooltip>
+      ),
+      sorter: (a, b) => a.amc_value - b.amc_value
     },
     {
-      title: 'Remarks',
-      dataIndex: 'remarks',
-      key: 'remarks',
-      ellipsis: true,
+      title: 'Status',
+      dataIndex: 'end_date',
+      key: 'end_date',
+      render: (endDate: string) => {
+        const status = getStatus(endDate);
+        return (
+          <Tag color={getStatusColor(status)}>
+            {status}
+          </Tag>
+        );
+      },
+      filters: [
+        { text: 'Active', value: 'ACTIVE' },
+        { text: 'Inactive', value: 'INACTIVE' }
+      ],
+      onFilter: (value: Key | boolean, record: AMCMapping) => {
+        const status = getStatus(record.end_date);
+        return status === value.toString();
+      }
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record: AMCMapping) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => handleEdit(record)}>
+      render: (_, record) => (
+        <Space>
+          <Button 
+            type="link" 
+            onClick={() => handleEdit(record)}
+          >
             Edit
           </Button>
           <Button 
             type="link" 
             danger 
             onClick={() => {
-              console.log('Delete button clicked for record:', record);
               Modal.confirm({
-                title: 'Delete Contract',
-                content: `Are you sure you want to delete the contract for ${record.equipment_name} with ${record.amcprovider_name}?`,
-                okText: 'Yes, Delete',
+                title: 'Delete AMC Mapping',
+                content: 'Are you sure you want to delete this AMC mapping?',
+                okText: 'Yes',
                 okType: 'danger',
-                cancelText: 'No, Cancel',
-                onOk: () => {
-                  console.log('Delete confirmation clicked for contract ID:', record.amccontract_id);
-                  message.loading({ content: 'Deleting contract...', key: 'deleteLoading' });
-                  return handleDelete(record.amccontract_id)
-                    .then(success => {
-                      console.log('Delete operation result:', success);
-                      if (success) {
-                        message.success('Contract deleted successfully');
-                      }
-                      return success;
-                    })
-                    .catch(error => {
-                      console.error('Error in delete operation:', error);
-                      message.error('Failed to delete contract');
-                      return false;
-                    })
-                    .finally(() => {
-                      console.log('Delete operation completed');
-                      message.destroy('deleteLoading');
-                    });
-                },
+                cancelText: 'No',
+                onOk: () => handleDelete(record.amccontract_id)
               });
             }}
           >
             Delete
           </Button>
         </Space>
-      ),
+      )
     },
   ];
 
@@ -283,13 +382,18 @@ const AMCMappingComponent: React.FC = () => {
             label="Equipment"
             rules={[{ required: true, message: 'Please select equipment' }]}
           >
-            <Select placeholder="Select equipment">
+            <Select 
+              placeholder="Select equipment"
+              disabled={editingMapping !== null}
+            >
               {equipments.map(equipment => (
                 <Select.Option 
                   key={equipment.equipment_id} 
                   value={equipment.equipment_id}
+                  disabled={!editingMapping && equipment.has_active_mapping}
                 >
                   {equipment.equipment_name}
+                  {equipment.has_active_mapping && !editingMapping && ' (Has Active Mapping)'}
                 </Select.Option>
               ))}
             </Select>
@@ -317,7 +421,10 @@ const AMCMappingComponent: React.FC = () => {
             label="Contract Period"
             rules={[{ required: true, message: 'Please select contract period' }]}
           >
-            <RangePicker style={{ width: '100%' }} />
+            <RangePicker 
+              style={{ width: '100%' }}
+              format="YYYY-MM-DD"
+            />
           </Form.Item>
 
           <Form.Item
@@ -325,30 +432,30 @@ const AMCMappingComponent: React.FC = () => {
             label="AMC Value"
             rules={[
               { required: true, message: 'Please enter AMC value' },
-              { 
-                validator: async (_, value) => {
-                  const numValue = parseFloat(value);
-                  if (isNaN(numValue) || numValue <= 0) {
-                    throw new Error('Value must be greater than 0');
-                  }
-                }
-              }
+              { type: 'number', min: 0, message: 'AMC value must be positive' }
             ]}
           >
-            <Input type="number" prefix="₹" min="0" step="0.01" />
+            <InputNumber
+              style={{ width: '100%' }}
+              formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value!.replace(/₹\s?|(,*)/g, '')}
+            />
           </Form.Item>
 
           <Form.Item
             name="remarks"
             label="Remarks"
           >
-            <Input.TextArea rows={4} />
+            <Input.TextArea 
+              rows={4}
+              placeholder="Enter any additional remarks or notes"
+            />
           </Form.Item>
 
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading}>
-                {editingMapping ? 'Update' : 'Add'}
+                {editingMapping ? 'Update' : 'Add'} Mapping
               </Button>
               <Button onClick={() => {
                 setIsModalVisible(false);

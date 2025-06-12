@@ -18,11 +18,18 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import DashboardLayout from '../../components/DashboardLayout';
+import { BASE_URL } from '../../utils/api';
+import { format } from 'date-fns';
 
 interface Project {
   project_id: number;
@@ -48,6 +55,7 @@ interface GrantEntry {
 interface GrantAllocation {
   field_id: number;
   amount: string;
+  field_name: string;
 }
 
 const GrantReceivedPage: React.FC = () => {
@@ -55,14 +63,13 @@ const GrantReceivedPage: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [budgetFields, setBudgetFields] = useState<BudgetField[]>([]);
   const [grantEntries, setGrantEntries] = useState<GrantEntry[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
   const [formData, setFormData] = useState({
     received_date: new Date().toISOString().split('T')[0],
     remarks: '',
-    allocations: [] as GrantAllocation[],
+    allocations: [] as GrantAllocation[]
   });
 
   const fetchProjects = async () => {
@@ -82,11 +89,9 @@ const GrantReceivedPage: React.FC = () => {
     }
   };
 
-  const fetchProjectBudgetFields = async () => {
-    if (!selectedProject) return;
-
+  const fetchProjectBudgetFields = async (projectId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/finance/projects/${selectedProject.project_id}/budget-fields-with-grants`, {
+      const response = await fetch(`http://localhost:5000/api/finance/projects/${projectId}/budget-fields-with-grants`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -98,7 +103,8 @@ const GrantReceivedPage: React.FC = () => {
           ...prev,
           allocations: data.map((field: BudgetField) => ({
             field_id: field.field_id,
-            amount: ''
+            amount: '',
+            field_name: field.field_name
           }))
         }));
       }
@@ -108,11 +114,9 @@ const GrantReceivedPage: React.FC = () => {
     }
   };
 
-  const fetchGrantEntries = async () => {
-    if (!selectedProject) return;
-
+  const fetchGrantEntries = async (projectId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/finance/projects/${selectedProject.project_id}/grant-entries`, {
+      const response = await fetch(`http://localhost:5000/api/finance/projects/${projectId}/grant-entries`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -133,8 +137,8 @@ const GrantReceivedPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedProject) {
-      fetchProjectBudgetFields();
-      fetchGrantEntries();
+      fetchProjectBudgetFields(selectedProject.project_id);
+      fetchGrantEntries(selectedProject.project_id);
     } else {
       setBudgetFields([]);
       setGrantEntries([]);
@@ -143,72 +147,93 @@ const GrantReceivedPage: React.FC = () => {
   }, [selectedProject]);
 
   const handleProjectChange = (event: any) => {
-    const project = projects.find(p => p.project_id === event.target.value);
+    const projectId = event.target.value;
+    const project = projects.find(p => p.project_id === projectId);
     setSelectedProject(project || null);
+    if (project) {
+      fetchProjectBudgetFields(project.project_id);
+      fetchGrantEntries(project.project_id);
+    }
   };
 
   const handleAllocationChange = (fieldId: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      allocations: prev.allocations.map(alloc =>
-        alloc.field_id === fieldId ? { ...alloc, amount: value } : alloc
-      )
-    }));
+    setFormData(prev => {
+      const allocations = [...prev.allocations];
+      const index = allocations.findIndex(a => a.field_id === fieldId);
+      
+      if (index >= 0) {
+        allocations[index] = { ...allocations[index], amount: value };
+      } else {
+        allocations.push({ field_id: fieldId, amount: value, field_name: '' });
+      }
+      
+      return { ...prev, allocations };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
 
-    // Validate total allocation matches budget
-    const totalAllocation = formData.allocations.reduce((sum, alloc) => sum + (Number(alloc.amount) || 0), 0);
-    if (totalAllocation === 0) {
-      setError('Please allocate grant amount to at least one budget field');
-      return;
-    }
-
     setLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      const response = await fetch('http://localhost:5000/api/finance/grant-received', {
+      // Validate allocations
+      const validAllocations = formData.allocations.filter(alloc => {
+        const amount = Number(alloc.amount);
+        return !isNaN(amount) && amount > 0;
+      });
+
+      if (validAllocations.length === 0) {
+        setError('Please enter valid amounts for at least one allocation');
+        return;
+      }
+
+      // Format date to YYYY-MM-DD without time
+      const formattedDate = format(new Date(formData.received_date), 'yyyy-MM-dd');
+      
+      const requestData = {
+        project_id: selectedProject.project_id,
+        received_date: formattedDate,
+        remarks: formData.remarks,
+        allocations: validAllocations.map(alloc => ({
+          field_id: alloc.field_id,
+          amount: Number(alloc.amount).toFixed(2)
+        }))
+      };
+
+      const response = await fetch(`${BASE_URL}/grant-received`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          project_id: selectedProject.project_id,
-          received_date: formData.received_date,
-          remarks: formData.remarks,
-          allocations: formData.allocations.filter(alloc => Number(alloc.amount) > 0)
-        }),
+        body: JSON.stringify(requestData)
       });
 
-      if (response.ok) {
-        setSuccess('Grant received entries added successfully');
-        fetchProjectBudgetFields();
-        fetchGrantEntries();
-        // Reset form
-        setFormData({
-          received_date: new Date().toISOString().split('T')[0],
-          remarks: '',
-          allocations: budgetFields.map(field => ({
-            field_id: field.field_id,
-            amount: ''
-          }))
-        });
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to add grant received entries');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add grant entry');
       }
+
+      setSuccess('Grant entry added successfully');
+      setFormData({
+        received_date: new Date().toISOString().split('T')[0],
+        remarks: '',
+        allocations: []
+      });
+      fetchGrantEntries(selectedProject.project_id);
     } catch (error) {
-      console.error('Error saving grant received:', error);
-      setError('Failed to add grant received entries');
+      console.error('Error adding grant:', error);
+      setError(error instanceof Error ? error.message : 'Failed to add grant entry');
     } finally {
       setLoading(false);
     }
   };
 
-  // Group grant entries by date
   const groupedGrantEntries = grantEntries.reduce((acc, entry) => {
     const dateKey = entry.received_date;
     if (!acc[dateKey]) {
@@ -226,8 +251,34 @@ const GrantReceivedPage: React.FC = () => {
     <DashboardLayout>
       <Box sx={{ p: 3 }}>
         <Stack spacing={3}>
-          {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-          {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+          {error && (
+            <Alert 
+              severity="error" 
+              onClose={() => setError(null)}
+              sx={{ 
+                position: 'sticky',
+                top: 16,
+                zIndex: 1000,
+                boxShadow: 2
+              }}
+            >
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert 
+              severity="success" 
+              onClose={() => setSuccess(null)}
+              sx={{ 
+                position: 'sticky',
+                top: error ? 80 : 16,
+                zIndex: 1000,
+                boxShadow: 2
+              }}
+            >
+              {success}
+            </Alert>
+          )}
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h5" component="h1">Grant Received</Typography>
@@ -351,7 +402,7 @@ const GrantReceivedPage: React.FC = () => {
                           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                           .map((entry) => (
                             <TableCell key={entry.date} sx={{ fontWeight: 'bold', minWidth: '150px' }}>
-                              {new Date(entry.date).toLocaleDateString()}
+                              {format(new Date(entry.date), 'dd-MM-yyyy')}
                               {entry.remarks && (
                                 <Typography variant="caption" display="block" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                                   {entry.remarks}
@@ -431,4 +482,4 @@ const GrantReceivedPage: React.FC = () => {
   );
 };
 
-export default GrantReceivedPage; 
+export default GrantReceivedPage;

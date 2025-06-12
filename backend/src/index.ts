@@ -20,6 +20,7 @@ import projectPublicationsRoutes from './routes/projectPublications';
 import piCopiRoutes from './routes/technical/piCopi';
 import businessAgreementsRoutes from './routes/business/agreements';
 import slaFundsRoutes from './routes/business/slaFunds';
+import calendarEventsRouter from './routes/calendarEvents';
 
 const app = express();
 
@@ -57,6 +58,7 @@ app.use('/api/project-publications', projectPublicationsRoutes);
 app.use('/api/technical/pi-copi', piCopiRoutes);
 app.use('/api/business/agreements', businessAgreementsRoutes);
 app.use('/api/business/sla-funds', slaFundsRoutes);
+app.use('/api/calendar-events', calendarEventsRouter);
 
 const PORT = process.env.PORT || 5000;
 

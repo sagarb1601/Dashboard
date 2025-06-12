@@ -4,6 +4,7 @@ import { Contractor, ContractorMapping } from '../types/contractor';
 import type { Vehicle, VehicleCreate, VehicleServicing, VehicleServicingCreate, VehicleInsurance, VehicleInsuranceCreate } from '../types/vehicles';
 
 const BASE_URL = 'http://localhost:5000/api';
+export { BASE_URL };
 
 const api = axios.create({
   baseURL: BASE_URL,

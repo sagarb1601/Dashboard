@@ -7,7 +7,8 @@ import {
   Input,
   Space,
   message,
-  Card
+  Card,
+  Tooltip
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import api from '../../../utils/api';
@@ -19,31 +20,51 @@ interface Provider {
   contact_number: string;
   email: string;
   address: string;
+  has_mappings?: boolean;
+}
+
+interface AMCMapping {
+  amccontract_id: number;
+  amcprovider_id: number;
+  status: 'ACTIVE' | 'INACTIVE';
 }
 
 const ProvidersComponent: React.FC = () => {
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [mappings, setMappings] = useState<AMCMapping[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  const fetchProviders = async () => {
+  const fetchData = async () => {
     try {
-      console.log('Fetching providers...');
-      const response = await api.get('/amc/providers');
-      console.log('Providers response:', response.data);
-      if (Array.isArray(response.data)) {
-        setProviders(response.data);
+      console.log('Fetching providers and mappings...');
+      const [providersRes, mappingsRes] = await Promise.all([
+        api.get('/amc/providers'),
+        api.get('/amc/contracts')
+      ]);
+
+      if (Array.isArray(providersRes.data)) {
+        const providersWithMappings = providersRes.data.map((provider: Provider) => ({
+          ...provider,
+          has_mappings: mappingsRes.data.some((mapping: AMCMapping) => 
+            mapping.amcprovider_id === provider.amcprovider_id
+          )
+        }));
+        setProviders(providersWithMappings);
+      }
+      if (Array.isArray(mappingsRes.data)) {
+        setMappings(mappingsRes.data);
       }
     } catch (error) {
-      console.error('Failed to fetch providers:', error);
+      console.error('Failed to fetch data:', error);
       message.error('Failed to fetch AMC providers');
     }
   };
 
   useEffect(() => {
-    fetchProviders();
+    fetchData();
   }, []);
 
   const handleAdd = () => {
@@ -65,10 +86,11 @@ const ProvidersComponent: React.FC = () => {
       console.log('Deleting provider:', id);
       await api.delete(`/amc/providers/${id}`);
       message.success('Provider deleted successfully');
-      fetchProviders();
-    } catch (error) {
+      fetchData();
+    } catch (error: any) {
       console.error('Failed to delete provider:', error);
-      message.error('Failed to delete provider');
+      const errorMessage = error.response?.data?.message || 'Failed to delete provider';
+      message.error(errorMessage);
     }
   };
 
@@ -87,7 +109,7 @@ const ProvidersComponent: React.FC = () => {
       }
       setIsModalVisible(false);
       form.resetFields();
-      fetchProviders();
+      fetchData();
     } catch (error) {
       console.error('Failed to save provider:', error);
       message.error('Failed to save AMC provider');
@@ -129,14 +151,21 @@ const ProvidersComponent: React.FC = () => {
       render: (record: Provider) => (
         <Space size="middle">
           <a onClick={() => handleEdit(record)}>Edit</a>
-          <a onClick={() => {
-            Modal.confirm({
-              title: 'Are you sure you want to delete this provider?',
-              onOk: () => handleDelete(record.amcprovider_id),
-              okText: 'Yes',
-              cancelText: 'No',
-            });
-          }} style={{ color: '#ff4d4f' }}>Delete</a>
+          {record.has_mappings ? (
+            <Tooltip title="Cannot delete provider with existing mappings">
+              <a style={{ color: '#d9d9d9', cursor: 'not-allowed' }}>Delete</a>
+            </Tooltip>
+          ) : (
+            <a onClick={() => {
+              Modal.confirm({
+                title: 'Are you sure you want to delete this provider?',
+                content: 'This action cannot be undone.',
+                onOk: () => handleDelete(record.amcprovider_id),
+                okText: 'Yes',
+                cancelText: 'No',
+              });
+            }} style={{ color: '#ff4d4f' }}>Delete</a>
+          )}
         </Space>
       ),
     },

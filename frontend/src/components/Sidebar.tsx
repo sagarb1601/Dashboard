@@ -80,7 +80,7 @@ const Sidebar: React.FC = () => {
         ];
       case 'acts':
         return [
-          { text: 'Courses Info', icon: <SchoolIcon />, path: '/welcome' },
+          { text: 'Courses Info', icon: <SchoolIcon />, path: '/acts/courses' },
         ];
       case 'hr':
         return [
@@ -173,6 +173,11 @@ const Sidebar: React.FC = () => {
             icon: <CalendarIcon />,
             path: '/technical/events'
           }
+        ];
+      case 'edofc':
+        return [
+          { text: 'Calendar/Events', icon: <CalendarIcon />, path: '/edofc/calendar' },
+          { text: 'Full Calendar (New)', icon: <CalendarIcon />, path: '/edofc/full-calendar' },
         ];
       default:
         return [];
