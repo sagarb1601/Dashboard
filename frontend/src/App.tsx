@@ -8,6 +8,7 @@ import DashboardLayout from './components/DashboardLayout';
 import BudgetFields from './pages/finance/BudgetFields';
 import Projects from './pages/finance/Projects';
 import FinanceHome from './pages/finance/FinanceHome';
+import AdminHome from './pages/admin/AdminHome';
 import Expenditure from './pages/finance/Expenditure';
 import GrantReceived from './pages/finance/GrantReceived';
 import YearlyBudget from './pages/finance/YearlyBudget';
@@ -58,9 +59,9 @@ export const getUserHomePath = (role: string): string => {
   console.log('Getting home path for role:', roleLower);
   
   switch (roleLower) {
-    case 'finance': return '/finance';
+    case 'finance': return '/finance/home';
     case 'hr': return '/hr/employees';
-    case 'admin': return '/admin/contractors';
+    case 'admin': return '/admin/home';
     case 'acts': return '/acts/courses';
     case 'bd': return '/business/clients';
     case 'tg': return '/technical/project-status';
@@ -264,6 +265,13 @@ const App: React.FC = () => {
             } />
 
             {/* Admin routes */}
+            <Route path="/admin/home" element={
+              <ProtectedRoute requireRole="admin">
+                {/* <DashboardLayout> */}
+                  <AdminHome />
+                {/* </DashboardLayout> */}
+              </ProtectedRoute>
+            } />
             <Route path="/admin/contractors" element={
               <ProtectedRoute requireRole="admin">
                 <DashboardLayout>

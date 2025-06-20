@@ -326,7 +326,7 @@ const StaffTab: React.FC = () => {
               <DatePicker
                 label="Date of Leaving"
                 value={formData.date_of_leaving}
-                onChange={(date) => setFormData({ ...formData, date_of_leaving: date ? (date as Dayjs).toDate() : null})}
+                onChange={(date) => setFormData({ ...formData, date_of_leaving: date ? dayjs(date).toDate() : null})}
                 slotProps={{ textField: { fullWidth: true } }}
                 minDate={formData.joining_date || undefined}
                 disabled={!formData.joining_date}

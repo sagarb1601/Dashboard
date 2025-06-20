@@ -37,7 +37,7 @@ router.get(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await pool.query(
-        "SELECT funding_agency, SUM(total_value) AS total_value FROM finance_projects GROUP BY funding_agency"
+        "SELECT funding_agency, SUM(total_value) AS total_value, COUNT(*) AS no_of_project FROM finance_projects GROUP BY funding_agency"
       );
       res.status(200).json(result.rows);
     } catch (error) {

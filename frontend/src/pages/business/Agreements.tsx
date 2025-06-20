@@ -38,6 +38,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import api from '../../utils/api';
 import { format } from 'date-fns';
 import { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 interface Agreement {
   id: number;
@@ -508,7 +509,7 @@ const Agreements: React.FC = () => {
                   <DatePicker
                     label="Signed Date"
                     value={formData.signed_date}
-                    onChange={(date) => setFormData({ ...formData, signed_date: date ? (date as Dayjs).toDate() : null })}
+                    onChange={(date) => setFormData({ ...formData, signed_date: date ? dayjs(date).toDate() : null })}
                     slotProps={{ textField: { fullWidth: true } }}
                   />
                 </LocalizationProvider>
@@ -518,7 +519,7 @@ const Agreements: React.FC = () => {
                   <DatePicker
                     label="Start Date"
                     value={formData.start_date}
-                    onChange={(date) => setFormData({ ...formData, start_date: date ? (date as Dayjs).toDate() : null})}
+                    onChange={(date) => setFormData({ ...formData, start_date: date ? dayjs(date).toDate() : null})}
                     slotProps={{ textField: { fullWidth: true } }}
                   />
                 </LocalizationProvider>
@@ -528,7 +529,7 @@ const Agreements: React.FC = () => {
                   <DatePicker
                     label="End Date"
                     value={formData.end_date}
-                    onChange={(date) => setFormData({ ...formData, end_date: date ? (date as Dayjs).toDate() : null})}
+                    onChange={(date) => setFormData({ ...formData, end_date: date ? dayjs(date).toDate() : null})}
                     slotProps={{ textField: { fullWidth: true } }}
                   />
                 </LocalizationProvider>

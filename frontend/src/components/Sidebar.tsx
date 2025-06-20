@@ -75,6 +75,7 @@ const Sidebar: React.FC = () => {
         ];
       case 'admin':
         return [
+          { text: 'Admin Home', icon: <HomeIcon />, path: '/admin/home' },
           { text: 'Contractors', icon: <TeamIcon />, path: '/admin/contractors' },
           { text: 'Staff', icon: <StaffIcon />, path: '/admin/staff' },
           { text: 'AMC', icon: <BuildIcon />, path: '/admin/amc' },

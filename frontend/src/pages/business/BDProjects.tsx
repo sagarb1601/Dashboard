@@ -32,6 +32,7 @@ import {
 import { DesktopDatePicker } from '@mui/x-date-pickers/DesktopDatePicker';
 import api from '../../utils/api';
 import { Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 
 interface Project {
   id: number;
@@ -295,7 +296,7 @@ const BDProjects: React.FC = () => {
             <DesktopDatePicker
               label="Extended Date"
               value={formData.extended_date}
-              onChange={(date) => setFormData({ ...formData, extended_date: date ? (date as Dayjs).toDate() : null })}
+              onChange={(date) => setFormData({ ...formData, extended_date: date ? dayjs(date).toDate() : null })}
               slotProps={{ textField: { fullWidth: true } }}
             />
           </Stack>
