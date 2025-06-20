@@ -16,6 +16,9 @@ import {
 import DashboardLayout from "../../components/DashboardLayout";
 import BudgetExpenditureChart from "./Chart Component/BudgetExpenditureChart";
 import LookerStudioEmbed from "./Chart Component/LookerStudioEmbed";
+import GrantHistoryChart from "./Chart Component/GrantHistoryChart";
+import RemainingBudgetChart from "./Chart Component/RemainingBudgetChart";
+
 interface Project {
   project_id: number;
   project_name: string;
@@ -133,6 +136,8 @@ const FinanceHome = () => {
       </Paper>
 
       <BudgetExpenditureChart/>
+      <GrantHistoryChart></GrantHistoryChart>
+      <RemainingBudgetChart></RemainingBudgetChart>
       {/* <LookerStudioEmbed/> */}
       
     </DashboardLayout>

@@ -6,6 +6,7 @@ import AMCValueChart from "./Chart Component/AMCValueChart";
 import AMCValueByEquipmentChart from "./Chart Component/AMCValueByEquipmentChart";
 import ContractsEndingChart from "./Chart Component/ContractsEndingChart";
 import InsuranceExpiryChart from "./Chart Component/InsuranceExpiryChart";
+import AMCExpiryChart from "./Chart Component/AMCExpiryChart";
 
 const AdminHome = () => {
   return (
@@ -16,6 +17,7 @@ const AdminHome = () => {
       <AMCValueByEquipmentChart></AMCValueByEquipmentChart>
       <ContractsEndingChart></ContractsEndingChart>
       <InsuranceExpiryChart></InsuranceExpiryChart>
+      <AMCExpiryChart></AMCExpiryChart>
     </DashboardLayout>
   );
 };

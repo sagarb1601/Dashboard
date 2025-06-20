@@ -92,7 +92,7 @@ const InsuranceExpiryChart = () => {
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Vehicle</TableCell>
+              <TableCell>Vehicle Registration No</TableCell>
               {next7Days.map(date => (
                 <TableCell key={date}>{format(new Date(date), 'MMM dd')}</TableCell>
               ))}

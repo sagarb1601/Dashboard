@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
-import { Box, Typography, Paper } from "@mui/material";
+import { Box, Typography, Paper , MenuItem, Select } from "@mui/material";
 
 interface Project {
   project_id: number;
@@ -82,27 +82,6 @@ const ExpenditureBudgetChart = () => {
     fetchData();
   }, [selectedProject]);
 
-  // Merge expenditures and budgets by year
-//   const chartData = (() => {
-//     const yearMap: { [year: number]: { year: number; Expenditure?: number; Budget?: number } } = {};
-
-//     expenditures.forEach((exp) => {
-//       const year = exp.year_number;
-//       const amount = parseFloat(exp.amount_spent);
-//       yearMap[year] = yearMap[year] || { year };
-//       yearMap[year].Expenditure = (yearMap[year].Expenditure || 0) + amount;
-//     });
-
-//     budgets.forEach((bud) => {
-//       const year = bud.year_number;
-//       const amount = parseFloat(bud.amount);
-//       yearMap[year] = yearMap[year] || { year };
-//       yearMap[year].Budget = (yearMap[year].Budget || 0) + amount;
-//     });
-
-//     return Object.values(yearMap).sort((a, b) => a.year - b.year);
-//   })();
-
 // Construct chartData outside the function block
 const chartData = (() => {
   const expMap = new Map<number, number>(); // year -> total expenditure
@@ -147,21 +126,24 @@ const chartData = (() => {
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <select
-        value={selectedProject?.project_id || ''}
-        onChange={(e) => {
-          const selected = projects.find(p => p.project_id === Number(e.target.value));
-          setSelectedProject(selected || null);
-        }}
-      >
-        <option value="">Select a project</option>
-        {projects.map(project => (
-          <option key={project.project_id} value={project.project_id}>
-            {project.project_name}
-          </option>
-        ))}
-      </select>
+     
 
+      <Select
+              value={selectedProject?.project_id || ''}
+              onChange={(e) => {
+                const selected = projects.find(p => p.project_id === Number(e.target.value));
+                setSelectedProject(selected || null);
+              }}
+              displayEmpty
+              sx={{ mb: 2, width: 300 }}
+            >
+              <MenuItem value="">Select a project</MenuItem>
+              {projects.map(project => (
+                <MenuItem key={project.project_id} value={project.project_id}>
+                  {project.project_name}
+                </MenuItem>
+              ))}
+            </Select>
       {loading && <p>Loading...</p>}
 
       {!loading && chartData.length > 0 && (
