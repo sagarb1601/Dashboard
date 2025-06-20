@@ -1,56 +1,67 @@
-export const getQuarterInfo = (periodType: 'PQ' | 'FY', quarterNumber: number, projectStartDate?: string) => {
-  if (periodType === 'FY') {
-    const quarters = {
-      1: 'Q1 (Apr-Jun)',
-      2: 'Q2 (Jul-Sep)',
-      3: 'Q3 (Oct-Dec)',
-      4: 'Q4 (Jan-Mar)',
-    };
-    return quarters[quarterNumber as 1 | 2 | 3 | 4];
-  } else {
-    if (!projectStartDate) return `Q${quarterNumber}`;
-    
-    const start = new Date(projectStartDate);
-    const quarterStart = new Date(start);
-    quarterStart.setMonth(start.getMonth() + (quarterNumber - 1) * 3);
-    const quarterEnd = new Date(quarterStart);
-    quarterEnd.setMonth(quarterStart.getMonth() + 2);
+import { startOfQuarter, endOfQuarter, startOfYear, endOfYear, addQuarters, addYears, isAfter, isBefore, getQuarter, getYear, setMonth, setDate, getMonth, parseISO, format } from 'date-fns';
 
-    return `Q${quarterNumber} (${quarterStart.toLocaleDateString('en-US', { month: 'short' })}-${quarterEnd.toLocaleDateString('en-US', { month: 'short' })})`;
+export const getQuarterInfo = (year: number, quarter: number, reportingType: 'FY' | 'PQ', projectStartDate: string): string => {
+  if (reportingType === 'FY') {
+    // For FY, quarters are:
+    // Q1: Apr-Jun
+    // Q2: Jul-Sep
+    // Q3: Oct-Dec
+    // Q4: Jan-Mar
+    const startMonth = quarter === 1 ? 'Apr' : quarter === 2 ? 'Jul' : quarter === 3 ? 'Oct' : 'Jan';
+    const endMonth = quarter === 1 ? 'Jun' : quarter === 2 ? 'Sep' : quarter === 3 ? 'Dec' : 'Mar';
+    return `FY ${year}-${(year + 1).toString().slice(-2)} Q${quarter} (${startMonth}-${endMonth})`;
+  } else {
+    // For PQ, quarters are based on project start date
+    const startDate = parseISO(projectStartDate);
+    const quarterStartDate = addQuarters(startDate, (quarter - 1));
+    const quarterEndDate = addQuarters(quarterStartDate, 1);
+    return `PQ ${quarter} (${format(quarterStartDate, 'MMM yyyy')}-${format(quarterEndDate, 'MMM yyyy')})`;
   }
 };
 
-export const getCurrentQuarter = (periodType: 'PQ' | 'FY', projectStartDate?: string): number => {
-  const currentDate = new Date();
+export const getCurrentQuarter = (reportingType: 'FY' | 'PQ', projectStartDate: string): number => {
+  const today = new Date();
+  const startDate = parseISO(projectStartDate);
   
-  if (periodType === 'FY') {
-    const month = currentDate.getMonth() + 1;
-    if (month >= 4 && month <= 6) return 1;
-    if (month >= 7 && month <= 9) return 2;
-    if (month >= 10 && month <= 12) return 3;
+  if (reportingType === 'FY') {
+    // For FY, quarters are:
+    // Q1: Apr-Jun (months 3-5)
+    // Q2: Jul-Sep (months 6-8)
+    // Q3: Oct-Dec (months 9-11)
+    // Q4: Jan-Mar (months 0-2)
+    const month = getMonth(today);
+    if (month >= 3 && month <= 5) return 1;
+    if (month >= 6 && month <= 8) return 2;
+    if (month >= 9 && month <= 11) return 3;
     return 4;
   } else {
-    if (!projectStartDate) return 1;
-    
-    const start = new Date(projectStartDate);
-    const diffMonths = (currentDate.getFullYear() - start.getFullYear()) * 12 + 
-                      currentDate.getMonth() - start.getMonth();
-    return Math.floor(diffMonths / 3) + 1;
+    // For PQ, quarters are based on project start date
+    const monthsSinceStart = (getYear(today) - getYear(startDate)) * 12 + getMonth(today) - getMonth(startDate);
+    return Math.floor(monthsSinceStart / 3) + 1;
   }
 };
 
-export const getCurrentYear = (periodType: 'PQ' | 'FY', projectStartDate?: string): number => {
-  const currentDate = new Date();
+export const getCurrentYear = (reportingType: 'FY' | 'PQ', projectStartDate: string): number => {
+  const today = new Date();
+  const startDate = parseISO(projectStartDate);
   
-  if (periodType === 'FY') {
-    const currentMonth = currentDate.getMonth() + 1;
-    return currentMonth < 4 ? currentDate.getFullYear() - 1 : currentDate.getFullYear();
+  if (reportingType === 'FY') {
+    // For FY, if month is April or later, use current year, otherwise use previous year
+    return getMonth(today) >= 3 ? getYear(today) : getYear(today) - 1;
   } else {
-    if (!projectStartDate) return 1;
-    
-    const start = new Date(projectStartDate);
-    const diffYears = currentDate.getFullYear() - start.getFullYear();
-    const diffMonths = currentDate.getMonth() - start.getMonth();
-    return diffMonths < 0 ? diffYears - 1 : diffYears;
+    // For PQ, use the year based on project start date
+    const yearsSinceStart = getYear(today) - getYear(startDate);
+    return getYear(startDate) + yearsSinceStart;
+  }
+};
+
+export const getQuarterMonths = (quarter: number): { start: number; end: number } => {
+  // For FY reporting type
+  switch (quarter) {
+    case 1: return { start: 3, end: 5 };  // Apr-Jun
+    case 2: return { start: 6, end: 8 };  // Jul-Sep
+    case 3: return { start: 9, end: 11 }; // Oct-Dec
+    case 4: return { start: 0, end: 2 };  // Jan-Mar
+    default: throw new Error('Invalid quarter');
   }
 }; 

@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import pool from '../db';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 interface DatabaseError extends Error {
     code?: string;
@@ -181,6 +182,63 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
         });
     } catch (error) {
         console.error('Registration error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get current user data
+router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        console.log('=== GET /me ===');
+        console.log('Request user:', req.user);
+        console.log('Username from request:', req.user?.username);
+        console.log('User role:', req.user?.role);
+        
+        if (!req.user) {
+            console.log('No user found in request');
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+
+        // Get user data
+        console.log('Fetching user data for username:', req.user.username);
+        const userQuery = 'SELECT id, username, role FROM users WHERE username = $1';
+        console.log('User query:', userQuery, 'with params:', [req.user.username]);
+        const userResult = await pool.query(userQuery, [req.user.username]);
+        console.log('User data result:', userResult.rows);
+
+        if (userResult.rows.length === 0) {
+            console.log('No user found in database');
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+
+        // First, let's check all technical groups
+        const allGroupsQuery = 'SELECT group_id, group_name FROM technical_groups';
+        const allGroupsResult = await pool.query(allGroupsQuery);
+        console.log('All available technical groups:', allGroupsResult.rows);
+
+        // Get group_id by matching username with technical group name
+        const groupQuery = 'SELECT group_id, group_name FROM technical_groups WHERE LOWER(group_name) = LOWER($1)';
+        console.log('Group query:', groupQuery, 'with params:', [req.user.username]);
+        console.log('Attempting to match username:', req.user.username, 'with technical groups');
+        console.log('Username to match (lowercase):', req.user.username.toLowerCase());
+        const groupResult = await pool.query(groupQuery, [req.user.username]);
+        console.log('Group match result:', groupResult.rows);
+
+        const group_id = groupResult.rows[0]?.group_id;
+        console.log('Group ID from technical_groups:', group_id);
+        console.log('Group name from technical_groups:', groupResult.rows[0]?.group_name);
+
+        const userData = {
+            ...userResult.rows[0],
+            group_id
+        };
+        console.log('Final user data being sent:', userData);
+
+        res.json(userData);
+    } catch (error) {
+        console.error('Error in GET /me:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

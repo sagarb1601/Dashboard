@@ -34,72 +34,6 @@ router.get('/expenditures/:projectId', authenticateToken, async (req, res) => {
   }
 });
 
-// Add multiple expenditure entries
-router.post('/expenditures/bulk', authenticateToken, async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { expenditures } = req.body;
-
-    // Validate expenditures array
-    if (!Array.isArray(expenditures) || expenditures.length === 0) {
-      throw new Error('Invalid expenditures data');
-    }
-
-    // Insert all expenditures
-    const insertPromises = expenditures.map(entry => {
-      const {
-        project_id,
-        field_id,
-        year_number,
-        period_type,
-        period_number,
-        amount_spent,
-        expenditure_date,
-        remarks
-      } = entry;
-
-      return client.query(
-        `INSERT INTO project_expenditure_entries (
-          project_id,
-          field_id,
-          year_number,
-          period_type,
-          period_number,
-          amount_spent,
-          expenditure_date,
-          remarks
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *`,
-        [
-          project_id,
-          field_id,
-          year_number,
-          period_type,
-          period_number,
-          amount_spent,
-          expenditure_date,
-          remarks
-        ]
-      );
-    });
-
-    const results = await Promise.all(insertPromises);
-    await client.query('COMMIT');
-    
-    res.status(201).json({
-      message: 'Expenditures added successfully',
-      expenditures: results.map((r: QueryResult<ExpenditureEntry>) => r.rows[0])
-    });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error adding expenditures:', error);
-    res.status(500).json({ error: 'Failed to add expenditures' });
-  } finally {
-    client.release();
-  }
-});
-
 // Delete an expenditure entry
 router.delete('/expenditures/:id', authenticateToken, async (req, res) => {
   try {
@@ -114,5 +48,12 @@ router.delete('/expenditures/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete expenditure' });
   }
 });
+
+function getFinancialYearEnd(date: Date): number {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1; // JS months are 0-based
+  // If month is April (4) or later, financial year ends next year
+  return month >= 4 ? year + 1 : year;
+}
 
 export default router; 

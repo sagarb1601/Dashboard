@@ -6,14 +6,15 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 import { authenticateToken } from './middleware/auth';
 import financeRoutes from './routes/finance';
-import { pool, initializeDatabase } from './db/setup';
+import { pool } from './db/setup';
+import { initializeDatabase } from './db/setup';
 import app from './app';
 
 interface AuthenticatedRequest extends Request {
   user?: {
-    userId: number;
+    id: number;
     username: string;
-    role: string;
+    role?: string;
   };
 }
 
@@ -22,7 +23,6 @@ dotenv.config();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
 app.use(express.json());
 
 // Login endpoint
@@ -71,7 +71,7 @@ app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> =
 // Change password endpoint
 app.post('/api/auth/change-password', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { currentPassword, newPassword } = req.body;
-  const userId = req.user?.userId;
+  const userId = req.user?.id;
 
   if (!userId) {
     res.status(401).json({ message: 'User not authenticated' });
@@ -129,6 +129,10 @@ const startServer = async () => {
     // Start server
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
+      console.log('Available routes:');
+      console.log('- GET /api/edofc/travels');
+      console.log('- GET /api/ed/travels');
+      console.log('- GET /api/technical/proposals');
     });
   } catch (error) {
     console.error('Failed to start server:', error);

@@ -11,16 +11,21 @@ import staffRoutes from './routes/admin/staff';
 import departmentsRoutes from './routes/admin/departments';
 import amcRoutes from './routes/amc';
 import authRoutes from './routes/auth';
+import technicalPatentsRoutes from './routes/technical/patents';
+import technicalProposalsRoutes from './routes/technical/proposals';
+import testRoutes from './routes/technical/test';
+import businessRoutes from './routes/business';
 
 import actsRoutes from './routes/acts';
 import hrRoutes from './routes/hr';
+import travelsRouter from './routes/travels';
 
 
 const app = express();
 
 // CORS configuration
 app.use(cors({
-  origin: true,  // Allow all origins during development
+  origin: 'http://localhost:3000',  // Frontend URL
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -43,16 +48,23 @@ app.use((req, res, next) => {
 
 // Register routes
 app.use('/api/auth', authRoutes);
+app.use('/api/technical/patents', authenticateToken, technicalPatentsRoutes);
+app.use('/api/technical/proposals', authenticateToken, technicalProposalsRoutes);
 app.use('/api/finance', authenticateToken, financeRoutes);
 app.use('/api/expenditure', authenticateToken, expenditureRoutes);
 app.use('/api/admin', contractorRoutes);
 app.use('/api/admin', staffRoutes);
 app.use('/api/admin', departmentsRoutes);
 app.use('/api/amc', authenticateToken, amcRoutes);
+app.use('/api/technical/test', testRoutes);
+app.use('/api/business', authenticateToken, businessRoutes);
 
 app.use('/api/acts', authenticateToken, actsRoutes);
 app.use('/api/hr', authenticateToken, hrRoutes);
+app.use('/api/edofc/travels', travelsRouter);
 
+// Add ED travels route
+app.use('/api/ed/travels', travelsRouter);
 
 // Login endpoint
 app.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {

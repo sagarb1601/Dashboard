@@ -75,6 +75,7 @@ const ClientsPage: React.FC = () => {
   const fetchClients = useCallback(async () => {
     try {
       const response = await api.get('/business/clients');
+      console.log('Clients data received:', response.data);
       setClients(response.data);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -170,32 +171,35 @@ const ClientsPage: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell>{client.client_name}</TableCell>
-                    <TableCell>{client.contact_person}</TableCell>
-                    <TableCell>{client.contact_number}</TableCell>
-                    <TableCell>{client.email}</TableCell>
-                    <TableCell>{client.address}</TableCell>
-                    <TableCell>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDialog(client)}
-                        title="Edit client"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDelete(client)}
-                        title="Delete client"
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {clients.map((client) => {
+                  console.log('Rendering client:', client.client_name, 'Contact number:', client.contact_number);
+                  return (
+                    <TableRow key={client.id}>
+                      <TableCell>{client.client_name}</TableCell>
+                      <TableCell>{client.contact_person}</TableCell>
+                      <TableCell>{client.contact_number}</TableCell>
+                      <TableCell>{client.email}</TableCell>
+                      <TableCell>{client.address}</TableCell>
+                      <TableCell>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenDialog(client)}
+                          title="Edit client"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDelete(client)}
+                          title="Delete client"
+                          color="error"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>

@@ -108,6 +108,51 @@ router.post('/status', authenticateToken, async (req: AuthenticatedRequest, res:
     }
 });
 
+// Delete project status
+router.delete('/status/:projectId', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        if (!req.user) {
+            res.status(401).json({ error: 'User not authenticated' });
+            return;
+        }
+
+        const { projectId } = req.params;
+        const { username } = req.user;
+
+        // Verify user has access to this project
+        const accessCheckQuery = `
+            SELECT 1 FROM finance_projects fp
+            JOIN technical_groups tg ON fp.group_id = tg.group_id
+            WHERE LOWER(tg.group_name) = LOWER($1)
+            AND fp.project_id = $2
+        `;
+        const { rows } = await pool.query(accessCheckQuery, [username, projectId]);
+        
+        if (rows.length === 0) {
+            res.status(403).json({ error: 'Access denied to this project' });
+            return;
+        }
+
+        // Delete the status record
+        const deleteQuery = `
+            DELETE FROM technical_project_status 
+            WHERE project_id = $1
+        `;
+
+        const result = await pool.query(deleteQuery, [projectId]);
+        
+        if (result.rowCount === 0) {
+            res.status(404).json({ error: 'Project status not found' });
+            return;
+        }
+
+        res.json({ message: 'Project status deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting project status:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Add new technical project
 router.post('/project', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {

@@ -16,6 +16,8 @@ import {
   Typography,
   Stack,
   Alert,
+  InputAdornment,
+  FormHelperText,
 } from '@mui/material';
 import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { useFormik } from 'formik';
@@ -36,6 +38,7 @@ interface Project {
   created_at: string;
   group_id: number;
   technical_group_name: string;
+  reporting_type?: string;
 }
 
 interface TechnicalGroup {
@@ -65,6 +68,7 @@ const validationSchema = yup.object({
   technical_group_id: yup.number()
     .required('Technical group is required')
     .positive('Please select a technical group'),
+  // reporting_type: yup.string().required('Reporting type is required').oneOf(['FY', 'PQ'], 'Invalid reporting type')
 });
 
 const Projects = () => {
@@ -86,6 +90,7 @@ const Projects = () => {
       funding_agency: 'MeitY',
       duration_years: 1,
       technical_group_id: '',
+      // reporting_type: 'FY'
     },
     validationSchema: validationSchema,
     onSubmit: async (values) => {
@@ -188,6 +193,7 @@ const Projects = () => {
       funding_agency: project.funding_agency,
       duration_years: project.duration_years,
       technical_group_id: project.group_id?.toString() || '',
+      // reporting_type: project.reporting_type || 'FY'
     });
     setOpen(true);
   };
@@ -234,9 +240,10 @@ const Projects = () => {
           <IconButton onClick={() => handleEdit(record)} color="primary">
             <EditIcon />
           </IconButton>
-          <IconButton onClick={() => handleDelete(record.project_id)} color="error">
+         <IconButton onClick={() => handleDelete(record.project_id)} color="error">
             <DeleteIcon />
           </IconButton>
+
         </>
       ),
     },
@@ -245,12 +252,12 @@ const Projects = () => {
   return (
     <DashboardLayout>
       <Box sx={{ 
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        position: "absolute",
-        zIndex: 1000,
-        left: `${drawerWidth}px`,
+        // height: '100%',
+        // display: 'flex',
+        // flexDirection: 'column',
+        // position: "absolute",
+        // zIndex: 1000,
+        // left: `${drawerWidth}px`,
         p: 3
       }}>
         <Stack spacing={2} sx={{ flex: '0 0 auto' }}>
@@ -422,6 +429,24 @@ const Projects = () => {
                   error={formik.touched.duration_years && Boolean(formik.errors.duration_years)}
                   helperText={formik.touched.duration_years && formik.errors.duration_years}
                 />
+
+                {/*
+                <FormControl fullWidth error={formik.touched.reporting_type && Boolean(formik.errors.reporting_type)}>
+                  <InputLabel>Reporting Type</InputLabel>
+                  <Select
+                    name="reporting_type"
+                    value={formik.values.reporting_type}
+                    onChange={formik.handleChange}
+                    label="Reporting Type"
+                  >
+                    <MenuItem value="FY">Financial Year</MenuItem>
+                    <MenuItem value="PQ">Project Quarter</MenuItem>
+                  </Select>
+                  {formik.touched.reporting_type && formik.errors.reporting_type && (
+                    <FormHelperText>{formik.errors.reporting_type}</FormHelperText>
+                  )}
+                </FormControl>
+                */}
               </Stack>
             </DialogContent>
             <DialogActions>

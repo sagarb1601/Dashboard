@@ -18,9 +18,13 @@ import projectStatusRoutes from './routes/projectStatus';
 import projectEventsRoutes from './routes/projectEvents';
 import projectPublicationsRoutes from './routes/projectPublications';
 import piCopiRoutes from './routes/technical/piCopi';
+import patentsRoutes from './routes/technical/patents';
+import proposalsRoutes from './routes/technical/proposals';
 import businessAgreementsRoutes from './routes/business/agreements';
 import slaFundsRoutes from './routes/business/slaFunds';
 import calendarEventsRouter from './routes/calendarEvents';
+import travelsRouter from './routes/travels';
+import talksRouter from './routes/talks';
 
 const app = express();
 
@@ -41,7 +45,7 @@ initializeDatabase().catch(console.error);
 
 // Register routes
 app.use('/api/auth', authRoutes);
-app.use('/api/finance', financeRouter);
+app.use('/api/finance', financeRoutes);
 app.use('/api/amc', amcRoutes);
 app.use('/api/admin/staff', adminStaffRoutes);
 app.use('/api/admin/contractors', adminContractorsRoutes);
@@ -56,9 +60,14 @@ app.use('/api/project-status', projectStatusRoutes);
 app.use('/api/project-events', projectEventsRoutes);
 app.use('/api/project-publications', projectPublicationsRoutes);
 app.use('/api/technical/pi-copi', piCopiRoutes);
+app.use('/api/technical/patents', patentsRoutes);
+app.use('/api/technical/proposals', proposalsRoutes);
 app.use('/api/business/agreements', businessAgreementsRoutes);
 app.use('/api/business/sla-funds', slaFundsRoutes);
 app.use('/api/calendar-events', calendarEventsRouter);
+app.use('/api/edofc/travels', travelsRouter);
+app.use('/api/ed/travels', travelsRouter);
+app.use('/api/edofc/talks', talksRouter);
 
 const PORT = process.env.PORT || 5000;
 

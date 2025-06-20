@@ -29,27 +29,26 @@ router.get('/projects', authenticateToken, async (req: Request, res: Response): 
 
 // Create a new project
 router.post('/projects', authenticateToken, async (req: Request, res: Response): Promise<void> => {
-  const {
-    project_name,
-    start_date,
-    end_date,
-    extension_end_date,
-    total_value,
-    funding_agency,
-    duration_years,
-    budget_fields
-  } = req.body;
-
   const client = await pool.connect();
   try {
+    const {
+      project_name,
+      start_date,
+      end_date,
+      extension_end_date,
+      total_value,
+      funding_agency,
+      duration_years,
+      group_id
+    } = req.body;
+
     await client.query('BEGIN');
 
     // Create the project
     const projectResult = await client.query(
-      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years]
+      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id]
     );
-
     const project = projectResult.rows[0];
 
     // Get all default budget fields
@@ -63,16 +62,6 @@ router.post('/projects', authenticateToken, async (req: Request, res: Response):
         'INSERT INTO project_budget_fields_mapping (project_id, field_id, is_custom) VALUES ($1, $2, false)',
         [project.project_id, field.field_id]
       );
-    }
-
-    // If budget fields were provided, insert them
-    if (budget_fields && budget_fields.length > 0) {
-      for (const field of budget_fields) {
-        await client.query(
-          'INSERT INTO project_budget_entries (project_id, field_id, year_number, amount) VALUES ($1, $2, $3, $4)',
-          [project.project_id, field.field_id, field.year_number, field.amount]
-        );
-      }
     }
 
     await client.query('COMMIT');
@@ -108,21 +97,32 @@ router.get('/projects/:id', authenticateToken, async (req: Request, res: Respons
 // Update a project
 router.put('/projects/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const {
-    project_name,
-    start_date,
-    end_date,
-    extension_end_date,
-    total_value,
-    funding_agency,
-    duration_years,
-    budget_fields,
-    group_id
-  } = req.body;
-
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      'UPDATE finance_projects SET project_name = $1, start_date = $2, end_date = $3, extension_end_date = $4, total_value = $5, funding_agency = $6, duration_years = $7, group_id = $8 WHERE project_id = $9 RETURNING *',
+    const {
+      project_name,
+      start_date,
+      end_date,
+      extension_end_date,
+      total_value,
+      funding_agency,
+      duration_years,
+      group_id,
+      budget_fields
+    } = req.body;
+
+    const result = await client.query(
+      `UPDATE finance_projects 
+       SET project_name = $1, 
+           start_date = $2, 
+           end_date = $3, 
+           extension_end_date = $4, 
+           total_value = $5, 
+           funding_agency = $6, 
+           duration_years = $7, 
+           group_id = $8
+       WHERE project_id = $9 
+       RETURNING *`,
       [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, id]
     );
 
@@ -149,25 +149,133 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 });
 
 // Delete a project
 router.delete('/projects/:id', authenticateToken, async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const client = await pool.connect();
+  
   try {
-    const result = await pool.query(
-      'DELETE FROM finance_projects WHERE project_id = $1 RETURNING *',
-      [id]
-    );
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Project not found' });
-      return;
+    console.log(`Starting deletion of project ${id} and its related data...`);
+    await client.query('BEGIN');
+
+    // First delete all related data
+    try {
+      // Delete grant received entries first
+      console.log('Deleting grant received entries...');
+      const grantResult = await client.query(
+        'DELETE FROM grant_received WHERE project_id = $1 RETURNING grant_id',
+        [id]
+      );
+      console.log(`Deleted ${grantResult.rowCount} grant received entries`);
+
+      // Delete expenditures
+      console.log('Deleting expenditure entries...');
+      const expResult = await client.query(
+        'DELETE FROM project_expenditure_entries WHERE project_id = $1 RETURNING expenditure_id',
+        [id]
+      );
+      console.log(`Deleted ${expResult.rowCount} expenditure entries`);
+
+      // Delete budget entries
+      console.log('Deleting budget entries...');
+      const budgetResult = await client.query(
+        'DELETE FROM project_budget_entries WHERE project_id = $1 RETURNING entry_id',
+        [id]
+      );
+      console.log(`Deleted ${budgetResult.rowCount} budget entries`);
+
+      // Delete budget field mappings
+      console.log('Deleting budget field mappings...');
+      const mappingResult = await client.query(
+        'DELETE FROM project_budget_fields_mapping WHERE project_id = $1 RETURNING field_id',
+        [id]
+      );
+      console.log(`Deleted ${mappingResult.rowCount} budget field mappings`);
+
+      // Delete PI/CoPI entries
+      console.log('Deleting PI/CoPI entries...');
+      const piResult = await client.query(
+        'DELETE FROM project_investigators WHERE project_id = $1 RETURNING id',
+        [id]
+      );
+      console.log(`Deleted ${piResult.rowCount} PI/CoPI entries`);
+
+      // Delete project status
+      console.log('Deleting project status...');
+      const statusResult = await client.query(
+        'DELETE FROM technical_project_status WHERE project_id = $1 RETURNING project_id',
+        [id]
+      );
+      console.log(`Deleted ${statusResult.rowCount} project status entries`);
+
+      // Finally delete the project
+      console.log('Deleting project...');
+      const result = await client.query(
+        'DELETE FROM finance_projects WHERE project_id = $1 RETURNING *',
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        console.log('Project not found, rolling back transaction...');
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Project not found' });
+        return;
+      }
+
+      console.log('Project deleted successfully, committing transaction...');
+      await client.query('COMMIT');
+      res.json({ 
+        message: 'Project and all related data deleted successfully',
+        details: {
+          grants: grantResult.rowCount,
+          expenditures: expResult.rowCount,
+          budgetEntries: budgetResult.rowCount,
+          budgetMappings: mappingResult.rowCount,
+          piEntries: piResult.rowCount,
+          statusEntries: statusResult.rowCount
+        }
+      });
+    } catch (error) {
+      console.error('Error during deletion process:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        code: (error as any).code,
+        constraint: (error as any).constraint
+      });
+      await client.query('ROLLBACK');
+      throw error; // Re-throw to be caught by outer try-catch
     }
-    res.json({ message: 'Project deleted successfully' });
   } catch (error) {
-    console.error('Error deleting project:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in project deletion endpoint:', error);
+    console.error('Full error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      code: (error as any).code,
+      constraint: (error as any).constraint
+    });
+    
+    // Check for specific database errors
+    if ((error as any).code === '23503') { // foreign key violation
+      res.status(400).json({ 
+        error: 'Cannot delete project because it has related records in other tables',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Failed to delete project',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        code: (error as any).code
+      });
+    }
+  } finally {
+    client.release();
+    console.log('Database connection released');
   }
 });
 
@@ -452,6 +560,11 @@ router.post('/projects/:projectId/expenditures', authenticateToken, async (req: 
       return;
     }
 
+    const date = new Date(expenditure_date);
+    const year_number = date.getFullYear();
+    const period_number = Math.floor((date.getMonth() + 3) / 3);
+    const period_type = 'FY';
+
     const result = await pool.query(
       `INSERT INTO project_expenditure_entries (
         project_id,
@@ -545,34 +658,73 @@ router.delete('/projects/:projectId/expenditures/:expenditureId', authenticateTo
   }
 });
 
-// Add multiple expenditure entries in bulk
+// Find the /expenditures/bulk endpoint and replace its logic with robust date handling and logging
 router.post('/expenditures/bulk', authenticateToken, async (req: Request, res: Response): Promise<void> => {
-  const { expenditures } = req.body;
-
-  if (!Array.isArray(expenditures) || expenditures.length === 0) {
-    res.status(400).json({ error: 'Invalid expenditures data' });
-    return;
-  }
-
+  console.log('Received /finance/expenditures/bulk request');
   const client = await pool.connect();
   try {
+    const { expenditures, originalDate } = req.body;
+    console.log('Payload received:', { expenditures, originalDate });
     await client.query('BEGIN');
 
-    // Validate that all fields are mapped to their respective projects
-    for (const entry of expenditures) {
-      const fieldCheck = await client.query(
-        'SELECT 1 FROM project_budget_fields_mapping WHERE project_id = $1 AND field_id = $2',
-        [entry.project_id, entry.field_id]
-      );
+    // Validate expenditures array
+    if (!Array.isArray(expenditures) || expenditures.length === 0) {
+      throw new Error('Invalid expenditures data');
+    }
 
-      if (fieldCheck.rows.length === 0) {
-        throw new Error(`Budget field ${entry.field_id} is not mapped to project ${entry.project_id}`);
+    // Get unique project IDs and dates (both original and new)
+    const projectIds = [...new Set(expenditures.map((e: any) => e.project_id))];
+    const dates = new Set<string>();
+    
+    // Add the original date if provided
+    if (originalDate) {
+      dates.add(originalDate);
+      console.log('Original date to delete:', originalDate);
+    }
+    
+    // Add all new dates
+    expenditures.forEach((e: any) => {
+      const dateOnly = e.expenditure_date;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+        throw new Error(`Invalid expenditure date format for entry. Expected yyyy-MM-dd, got: ${e.expenditure_date}`);
+      }
+      dates.add(dateOnly);
+      console.log('New date to handle:', dateOnly);
+    });
+
+    console.log('Dates to process:', Array.from(dates));
+
+    // Delete all existing entries for these project IDs and dates
+    for (const projectId of projectIds) {
+      for (const date of dates) {
+        console.log(`Deleting entries for project ${projectId} and date ${date}`);
+        const deleteResult = await client.query(
+          'DELETE FROM project_expenditure_entries WHERE project_id = $1 AND expenditure_date = $2 RETURNING *',
+          [projectId, date]
+        );
+        console.log(`Deleted ${deleteResult.rowCount} entries for project ${projectId} and date ${date}`);
       }
     }
 
-    // Insert all expenditure entries
-    const insertPromises = expenditures.map(entry =>
-      client.query(
+    // Insert all expenditures
+    const insertPromises = expenditures.map((entry: any) => {
+      const {
+        project_id,
+        field_id,
+        amount_spent,
+        expenditure_date,
+        remarks
+      } = entry;
+
+      console.log(`Inserting entry for project ${project_id}, field ${field_id}, date ${expenditure_date}`);
+
+      // Calculate year and period based on the local date
+      const date = new Date(expenditure_date);
+      const year_number = date.getFullYear();
+      const period_number = Math.floor((date.getMonth() + 3) / 3);
+      const period_type = 'FY';
+
+      return client.query(
         `INSERT INTO project_expenditure_entries (
           project_id,
           field_id,
@@ -582,31 +734,33 @@ router.post('/expenditures/bulk', authenticateToken, async (req: Request, res: R
           amount_spent,
           expenditure_date,
           remarks
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *`,
         [
-          entry.project_id,
-          entry.field_id,
-          entry.year_number,
-          entry.period_type,
-          entry.period_number,
-          entry.amount_spent,
-          entry.expenditure_date,
-          entry.remarks
+          project_id,
+          field_id,
+          year_number,
+          period_type,
+          period_number,
+          amount_spent,
+          expenditure_date,
+          remarks
         ]
-      )
-    );
+      );
+    });
 
     const results = await Promise.all(insertPromises);
     await client.query('COMMIT');
-
+    
+    console.log('Successfully processed all expenditures');
     res.status(201).json({
       message: 'Expenditures added successfully',
-      entries: results.map(result => result.rows[0])
+      entries: results.map((r: any) => r.rows[0])
     });
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Error creating bulk expenditures:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Internal server error' });
+    console.error('Error adding expenditures:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to add expenditures' });
   } finally {
     client.release();
   }
@@ -652,40 +806,6 @@ router.get('/projects/:projectId/budget-fields-with-grants', authenticateToken, 
   } catch (error) {
     console.error('Error fetching budget fields with grants:', error);
     res.status(500).json({ error: 'Failed to fetch budget fields with grants' });
-  }
-});
-
-router.post('/grant-received', authenticateToken, async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { project_id, received_date, remarks, allocations } = req.body;
-
-    await client.query('BEGIN');
-
-    // Insert grant entries for each field allocation
-    for (const allocation of allocations) {
-      if (allocation.amount > 0) {
-        await client.query(
-          `INSERT INTO grant_received (
-            project_id, 
-            field_id, 
-            received_date, 
-            amount, 
-            remarks
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [project_id, allocation.field_id, received_date, allocation.amount, remarks]
-        );
-      }
-    }
-
-    await client.query('COMMIT');
-    res.json({ message: 'Grant received entries added successfully' });
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Error adding grant received:', error);
-    res.status(500).json({ error: 'Failed to add grant received entries' });
-  } finally {
-    client.release();
   }
 });
 
@@ -831,6 +951,48 @@ router.delete('/grant-received/:grantId', authenticateToken, async (req: Request
     await client.query('ROLLBACK');
     console.error('Error deleting grant entry:', error);
     res.status(500).json({ error: 'Failed to delete grant entry' });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete grant entries by project ID and date
+router.delete('/grant-received/:projectId/:date', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { projectId, date } = req.params;
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      console.error('Invalid date format:', date);
+      res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      return;
+    }
+
+    console.log('=== Grant Delete Debug ===');
+    console.log('Deleting grants for project:', projectId, 'date:', date);
+
+    await client.query('BEGIN');
+
+    // Delete all grant entries for this project and date
+    const deleteResult = await client.query(
+      'DELETE FROM grant_received WHERE project_id = $1 AND received_date = $2 RETURNING *',
+      [projectId, date]
+    );
+
+    console.log('Deleted grants:', deleteResult.rowCount);
+
+    if (deleteResult.rowCount === 0) {
+      res.status(404).json({ error: 'No grant entries found for this date' });
+      return;
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Grant entries deleted successfully', count: deleteResult.rowCount });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting grant entries:', error);
+    res.status(500).json({ error: 'Failed to delete grant entries' });
   } finally {
     client.release();
   }
@@ -1071,6 +1233,124 @@ router.put('/grant-received/:date', authenticateToken, async (req: Request, res:
     }
     
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to update grant entries' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/grant-received', authenticateToken, async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const { project_id, received_date, remarks, allocations } = req.body;
+
+    // Validate input
+    if (!project_id || !received_date || !Array.isArray(allocations)) {
+      res.status(400).json({ error: 'Invalid input data' });
+      return;
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(received_date)) {
+      res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    // Insert grant entries for each field allocation - allow zero and negative values
+    for (const allocation of allocations) {
+      const amount = Number(allocation.amount);
+      if (!isNaN(amount)) { // Only check if it's a valid number
+        await client.query(
+          `INSERT INTO grant_received (
+            project_id, 
+            field_id, 
+            received_date, 
+            amount, 
+            remarks
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [project_id, allocation.field_id, received_date, amount, remarks]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Grant received entries added successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error adding grant received:', error);
+    res.status(500).json({ error: 'Failed to add grant received entry' });
+  } finally {
+    client.release();
+  }
+});
+
+router.post('/grant-received/bulk-edit', authenticateToken, async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    console.log('=== Grant Received Bulk Edit Debug ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
+    const { project_id, received_date, grants } = req.body;
+
+    // Validate input
+    if (!project_id || !received_date || !Array.isArray(grants)) {
+      console.error('Invalid input:', { project_id, received_date, grants });
+      res.status(400).json({ error: 'Invalid input data' });
+      return;
+    }
+
+    // Validate date format (YYYY-MM-DD)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(received_date)) {
+      console.error('Invalid date format:', received_date);
+      res.status(400).json({ error: 'Invalid date format. Use YYYY-MM-DD' });
+      return;
+    }
+
+    console.log('Starting transaction...');
+    await client.query('BEGIN');
+
+    // Delete existing entries for this date
+    console.log('Deleting existing entries...');
+    const deleteResult = await client.query(
+      `DELETE FROM grant_received 
+       WHERE project_id = $1 AND received_date = $2`,
+      [project_id, received_date]
+    );
+    console.log('Deleted grants:', deleteResult.rowCount);
+
+    // Insert new entries - allow zero and negative values
+    if (grants.length > 0) {
+      console.log('Inserting new grant entries...');
+      for (const grant of grants) {
+        const amount = Number(grant.amount);
+        if (!isNaN(amount)) { // Only check if it's a valid number
+          console.log('Inserting grant:', { field_id: grant.field_id, amount });
+          await client.query(
+            `INSERT INTO grant_received (
+              project_id, 
+              field_id, 
+              received_date, 
+              amount, 
+              remarks
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [project_id, grant.field_id, received_date, amount, grant.remarks || null]
+          );
+        }
+      }
+    }
+
+    console.log('Committing transaction...');
+    await client.query('COMMIT');
+    console.log('Transaction committed successfully');
+    res.json({ message: 'Grant received entries updated successfully' });
+  } catch (error) {
+    console.error('Error in bulk-edit grant received:', error);
+    await client.query('ROLLBACK');
+    res.status(500).json({ 
+      error: 'Failed to update grant received entries',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   } finally {
     client.release();
   }

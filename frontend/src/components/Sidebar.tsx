@@ -11,7 +11,7 @@ import {
   School as SchoolIcon,
   Group as TeamIcon,
   People as StaffIcon,
-  MonetizationOn as BudgetIcon,
+  ListAlt as BudgetIcon,
   Assessment as ExpenditureIcon,
   AccountBalanceWallet as GrantIcon,
   Business as ProjectIcon,
@@ -32,6 +32,14 @@ import {
   MiscellaneousServices as MiscellaneousServicesIcon,
   Inventory2 as Inventory2Icon,
   Assignment as AssignmentIcon,
+  FlightTakeoff as FlightTakeoffIcon,
+  ListAlt as ListAltIcon,
+  CalendarMonth as CalendarMonthIcon,
+  RecordVoiceOver as TalkIcon,
+  FlightLand as FlightLandIcon,
+  Science as ScienceIcon,
+  Lightbulb as LightbulbIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -68,8 +76,9 @@ const Sidebar: React.FC = () => {
           { text: 'Projects', icon: <ProjectIcon />, path: '/finance' },
           { text: 'Budget Fields', icon: <BudgetIcon />, path: '/finance/budget' },
           { text: 'Yearly Budget', icon: <CalendarIcon />, path: '/finance/yearly-budget' },
-          { text: 'Expenditure', icon: <ExpenditureIcon />, path: '/finance/expenditure' },
           { text: 'Grant Received', icon: <GrantIcon />, path: '/finance/grant-received' },
+          { text: 'Expenditure', icon: <ExpenditureIcon />, path: '/finance/expenditure' },
+          
         ];
       case 'admin':
         return [
@@ -128,31 +137,29 @@ const Sidebar: React.FC = () => {
             path: '/business/purchase-orders'
           },
           {
-            text: 'Service Details',
-            icon: <BuildIcon />,
-            path: '/business/service-details'
+            text: 'PO Status Management',
+            icon: <HistoryIcon />,
+            path: '/business/purchase-order-status'
           },
-
+          // {
+          //   text: 'Service Details',
+          //   icon: <BuildIcon />,
+          //   path: '/business/service-details'
+          // },
           {
             text: 'Agreements',
             icon: <BuildIcon />,
             path: '/business/agreements'
           },
-
           {
             text: 'SLA Fund',
             icon: <BuildIcon />,
-            path: '/business/sla-fund'
+            path: '/business/sla-funds'
           }
-
         ];
       case 'tg':
         return [
-          {
-            text: 'Group Projects',
-            icon: <GroupWorkIcon />,
-            path: '/technical/group-projects'
-          },
+          
           {
             text: 'Project Status',
             icon: <AssignmentIcon />,
@@ -164,20 +171,89 @@ const Sidebar: React.FC = () => {
             path: '/technical/pi-copi'
           },
           {
-            text: 'Publications',
-            icon: <FolderIcon />,
-            path: '/technical/publications'
-          },
-          {
-            text: 'Events',
-            icon: <CalendarIcon />,
-            path: '/technical/events'
+            text: 'Technical Activities',
+            icon: <ScienceIcon />,
+            children: [
+              {
+                text: 'Publications',
+                icon: <FolderIcon />,
+                path: '/technical/publications'
+              },
+              {
+                text: 'Events',
+                icon: <CalendarIcon />,
+                path: '/technical/events'
+              },
+              {
+                text: 'Patents',
+                icon: <LightbulbIcon />,
+                path: '/technical/patents'
+              },
+              {
+                text: 'Proposals',
+                icon: <AssignmentIcon />,
+                path: '/technical/proposals'
+              }
+            ]
           }
         ];
       case 'edofc':
         return [
           { text: 'Calendar/Events', icon: <CalendarIcon />, path: '/edofc/calendar' },
           { text: 'Full Calendar (New)', icon: <CalendarIcon />, path: '/edofc/full-calendar' },
+          {
+            text: 'Tours & Travels',
+            icon: <FlightTakeoffIcon />,
+            children: [
+              {
+                text: 'Travel List',
+                icon: <ListAltIcon />,
+                path: '/edofc/travels'
+              },
+              {
+                text: 'Travel Calendar',
+                icon: <CalendarMonthIcon />,
+                path: '/edofc/travels/calendar'
+              }
+            ]
+          },
+          { text: 'Talks', icon: <TalkIcon />, path: '/edofc/talks' },
+        ];
+      case 'ed':
+        return [
+          { text: 'Calendar', icon: <CalendarIcon />, path: '/ed/calendar' },
+          { text: 'Events', icon: <CalendarMonthIcon />, path: '/ed/events' },
+          // { text: 'Attendance', icon: <ListAltIcon />, path: '/ed/attendance' },  // Commented out as functionality moved to Events page
+          { text: 'Travel List', icon: <FlightTakeoffIcon />, path: '/ed/travel-list' },
+          { text: 'Travel Calendar', icon: <FlightLandIcon />, path: '/ed/travel-calendar' }
+        ];
+      case 'hpc':
+        return [
+          {
+            text: 'Group Projects',
+            icon: <GroupWorkIcon />,
+            path: '/hpc/projects'
+          },
+          {
+            text: 'Project Status',
+            icon: <AssignmentIcon />,
+            path: '/hpc/project-status'
+          },
+          {
+            text: 'PI/COPI',
+            icon: <BuildIcon />,
+            path: '/hpc/pi-copi'
+          },
+          {
+            text: 'Publications',
+            icon: <FolderIcon />,
+            path: '/hpc/publications'
+          },
+          {
+            text: 'Events',
+            icon: <CalendarIcon />,
+            path: '/hpc/events'
+          }
         ];
       default:
         return [];

@@ -4,7 +4,7 @@ const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
   user: process.env.PGUSER || 'postgres',
   password: process.env.PGPASSWORD || 'sagar123',
-  database: process.env.PGDATABASE || 'office_dashboard',
+  database: process.env.PGDATABASE || 'dashboard',
   port: parseInt(process.env.PGPORT || '5432'),
 });
 

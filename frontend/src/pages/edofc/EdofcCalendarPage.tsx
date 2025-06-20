@@ -1,19 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form, Input, TimePicker, List, message, Popconfirm, Card } from 'antd';
-import { CalendarEvent } from '../../types/calendarEvent';
+import { Modal, Button, Form, Input, TimePicker, List, message, Popconfirm, Card, Tag, DatePicker, Select, Tooltip, Calendar, Space } from 'antd';
+import { CalendarEvent, EventType } from '../../types/calendarEvent';
 import {
   getCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent
 } from '../../services/edoffice/calendarEvents';
-import dayjs, { Dayjs } from 'dayjs';
+import './calendar.css';
+import moment, { Moment } from 'moment';
+import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
 import { useNavigate } from 'react-router-dom';
 import 'dayjs/locale/en';
 
+dayjs.extend(isBetween);
+
+const { RangePicker } = DatePicker;
+
+// Event type colors
+const eventTypeColors: Record<EventType, string> = {
+  event: 'blue',
+  training: 'green',
+  meeting: 'purple',
+  other: 'orange'
+};
+
 const EdofcCalendarPage: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs>(dayjs());
   const [modalVisible, setModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [form] = Form.useForm();
@@ -48,22 +63,33 @@ const EdofcCalendarPage: React.FC = () => {
     }
   };
 
-  const openAddModal = () => {
+  const openAddModal = (date: dayjs.Dayjs) => {
     setEditingEvent(null);
     form.resetFields();
+    form.setFieldsValue({
+      startDate: date.format('YYYY-MM-DD'),
+      startTime: '09:00',
+      endDate: date.format('YYYY-MM-DD'),
+      endTime: '10:00',
+      reminder_minutes: 15,
+      event_type: 'event' // Set default event type
+    });
     setModalVisible(true);
   };
 
   const openEditModal = (event: CalendarEvent) => {
     setEditingEvent(event);
     form.setFieldsValue({
-      ...event,
+      title: event.title,
+      description: event.description,
+      venue: event.venue,
+      meeting_link: event.meeting_link,
       startDate: dayjs(event.start_time).format('YYYY-MM-DD'),
       startTime: dayjs(event.start_time).format('HH:mm'),
       endDate: dayjs(event.end_time).format('YYYY-MM-DD'),
       endTime: dayjs(event.end_time).format('HH:mm'),
-      venue: event.venue || '',
-      meeting_link: event.meeting_link || '',
+      reminder_minutes: event.reminder_minutes,
+      event_type: event.event_type || 'event' // Ensure event_type has a default value
     });
     setModalVisible(true);
   };
@@ -92,6 +118,7 @@ const EdofcCalendarPage: React.FC = () => {
         venue: values.venue,
         meeting_link: values.meeting_link,
         reminder_minutes: values.reminder_minutes,
+        event_type: values.event_type || 'event' // Add event_type with default value
       };
       
       if (editingEvent) {
@@ -117,8 +144,165 @@ const EdofcCalendarPage: React.FC = () => {
     dayjs(ev.start_time).isSame(selectedDate, 'day')
   );
 
+  // Custom cell renderer for calendar
+  const dateCellRender = (date: Moment) => {
+    const eventsForDate = events.filter(ev =>
+      dayjs(date.toDate()).isBetween(ev.start_time, ev.end_time, 'day', '[]')
+    );
+
+    // If there are more than 3 events, show a count with tooltip
+    if (eventsForDate.length > 3) {
+      return (
+        <Tooltip 
+          title={
+            <div>
+              {eventsForDate.map(ev => (
+                <div key={ev.id} style={{ marginBottom: 4 }}>
+                  <Tag color={eventTypeColors[ev.event_type]} style={{ margin: 0 }}>
+                    {ev.title}
+                  </Tag>
+                  <div style={{ fontSize: '12px', color: '#666', marginTop: 2 }}>
+                    {dayjs(ev.start_time).format('h:mm A')} - {dayjs(ev.end_time).format('h:mm A')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          }
+          placement="right"
+        >
+          <div style={{ cursor: 'pointer' }}>
+            <Tag color="blue" style={{ width: '100%', margin: 0 }}>
+              {eventsForDate.length} events
+            </Tag>
+          </div>
+        </Tooltip>
+      );
+    }
+
+    // Show up to 3 events directly in the cell
+    return (
+      <div>
+        {eventsForDate.slice(0, 3).map(ev => (
+          <Tooltip
+            key={ev.id}
+            title={
+              <div>
+                <div><strong>{ev.title}</strong></div>
+                <div>{ev.description}</div>
+                <div>{dayjs(ev.start_time).format('h:mm A')} - {dayjs(ev.end_time).format('h:mm A')}</div>
+                {ev.venue && <div>Venue: {ev.venue}</div>}
+                {ev.meeting_link && <div>Meeting Link: {ev.meeting_link}</div>}
+              </div>
+            }
+            placement="right"
+          >
+            <div style={{ cursor: 'pointer', marginBottom: 2 }}>
+              <Tag color={eventTypeColors[ev.event_type]} style={{ width: '100%', margin: 0 }}>
+                {ev.title}
+              </Tag>
+            </div>
+          </Tooltip>
+        ))}
+      </div>
+    );
+  };
+
+  const handlePanelChange = (date: Moment, mode: string) => {
+    setSelectedDate(dayjs(date.toDate()));
+  };
+
   return (
     <div style={{ padding: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h2>Calendar</h2>
+          <div style={{ marginTop: 8 }}>
+            <Tag color="blue">Event</Tag>
+            <Tag color="green">Training</Tag>
+            <Tag color="purple">Meeting</Tag>
+            <Tag color="orange">Other</Tag>
+          </div>
+        </div>
+        <Button type="primary" onClick={() => openAddModal(selectedDate)}>
+          Add Event
+        </Button>
+      </div>
+
+      <div className="calendar-container">
+        <Calendar
+          value={moment(selectedDate.toDate())}
+          onSelect={date => setSelectedDate(dayjs(date.toDate()))}
+          onPanelChange={handlePanelChange}
+          dateCellRender={dateCellRender}
+          mode="month"
+          headerRender={({ value, onChange }) => {
+            const start = 0;
+            const end = 12;
+            const monthOptions = [];
+
+            let current = value.clone();
+            const localeData = value.localeData();
+            const months = [];
+            for (let i = 0; i < 12; i++) {
+              current = current.month(i);
+              months.push(localeData.monthsShort(current));
+            }
+
+            for (let i = start; i < end; i++) {
+              monthOptions.push(
+                <Select.Option key={i} value={i} className="month-item">
+                  {months[i]}
+                </Select.Option>
+              );
+            }
+
+            const year = value.year();
+            const month = value.month();
+            const options = [];
+            for (let i = year - 10; i < year + 10; i += 1) {
+              options.push(
+                <Select.Option key={i} value={i} className="year-item">
+                  {i}
+                </Select.Option>
+              );
+            }
+
+            return (
+              <div style={{ 
+                padding: '8px 16px', 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Select
+                  style={{ width: 100 }}
+                  dropdownMatchSelectWidth={false}
+                  value={year}
+                  onChange={newYear => {
+                    const now = moment(value.toDate()).year(newYear);
+                    onChange(now);
+                  }}
+                >
+                  {options}
+                </Select>
+                <Select
+                  style={{ width: 100 }}
+                  dropdownMatchSelectWidth={false}
+                  value={month}
+                  onChange={newMonth => {
+                    const now = moment(value.toDate()).month(newMonth);
+                    onChange(now);
+                  }}
+                >
+                  {monthOptions}
+                </Select>
+              </div>
+            );
+          }}
+        />
+      </div>
+
       <Card>
         <h2>Calendar / Events</h2>
         <div style={{ marginBottom: 16, display: 'flex', gap: 16, alignItems: 'center' }}>
@@ -133,7 +317,7 @@ const EdofcCalendarPage: React.FC = () => {
               width: '200px'
             }}
           />
-          <Button type="primary" onClick={openAddModal}>
+          <Button type="primary" onClick={() => openAddModal(selectedDate)}>
             Add Event
           </Button>
         </div>
@@ -187,6 +371,18 @@ const EdofcCalendarPage: React.FC = () => {
         destroyOnClose
       >
         <Form form={form} layout="vertical" preserve={false}>
+          <Form.Item 
+            name="event_type" 
+            label="Event Type" 
+            rules={[{ required: true, message: 'Please select event type' }]}
+          >
+            <Select>
+              <Select.Option value="event">Event</Select.Option>
+              <Select.Option value="training">Training</Select.Option>
+              <Select.Option value="meeting">Meeting</Select.Option>
+              <Select.Option value="other">Other</Select.Option>
+            </Select>
+          </Form.Item>
           <Form.Item 
             name="title" 
             label="Title" 

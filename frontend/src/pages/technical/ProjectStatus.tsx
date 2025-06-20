@@ -21,8 +21,11 @@ import {
   Alert,
   Stack,
   TextField,
-  CircularProgress
+  CircularProgress,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { SelectChangeEvent } from '@mui/material/Select';
 import api from '../../utils/api';
 
@@ -51,6 +54,8 @@ const ProjectStatus = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
 
   useEffect(() => {
     fetchProjects();
@@ -96,7 +101,22 @@ const ProjectStatus = () => {
     }
   };
 
-  const handleOpenDialog = () => {
+  const handleOpenDialog = (mode: 'add' | 'edit' = 'add', project?: Project) => {
+    if (mode === 'edit' && project) {
+      setEditMode(true);
+      setEditingProjectId(project.project_id);
+      setSelectedProject(project.project_id);
+      setSelectedStatus(project.status);
+      // Find the employee who last updated this project
+      const lastUpdatedEmployee = employees.find(emp => emp.employee_name === project.updated_by_name);
+      setSelectedEmployee(lastUpdatedEmployee?.employee_id || '');
+    } else {
+      setEditMode(false);
+      setEditingProjectId(null);
+      setSelectedProject('');
+      setSelectedStatus('');
+      setSelectedEmployee('');
+    }
     setOpenDialog(true);
     setError(null);
     setSuccess(null);
@@ -104,6 +124,8 @@ const ProjectStatus = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setEditMode(false);
+    setEditingProjectId(null);
     setSelectedProject('');
     setSelectedStatus('');
     setSelectedEmployee('');
@@ -125,14 +147,30 @@ const ProjectStatus = () => {
         updatedBy: selectedEmployee
       });
 
-      setSuccess('Status updated successfully');
+      setSuccess(`Status ${editMode ? 'updated' : 'added'} successfully`);
       await fetchProjects(); // Refresh the projects list
       handleCloseDialog();
     } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to update status. Please try again.');
+      setError(error.response?.data?.error || `Failed to ${editMode ? 'update' : 'add'} status. Please try again.`);
       console.error('Error updating status:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (projectId: number) => {
+    if (window.confirm('Are you sure you want to delete this project status?')) {
+      try {
+        setLoading(true);
+        await api.delete(`/project-status/status/${projectId}`);
+        setSuccess('Project status deleted successfully');
+        await fetchProjects(); // Refresh the projects list
+      } catch (error: any) {
+        setError(error.response?.data?.error || 'Failed to delete project status. Please try again.');
+        console.error('Error deleting project status:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -156,7 +194,7 @@ const ProjectStatus = () => {
           <Button 
             variant="contained" 
             color="primary" 
-            onClick={handleOpenDialog}
+            onClick={() => handleOpenDialog()}
             disabled={loading}
           >
             Add Project Status
@@ -169,8 +207,8 @@ const ProjectStatus = () => {
               <TableRow>
                 <TableCell>Project Name</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Last Updated</TableCell>
                 <TableCell>Updated By</TableCell>
+                <TableCell align="center">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -191,10 +229,27 @@ const ProjectStatus = () => {
                   <TableRow key={project.project_id}>
                     <TableCell>{project.project_name}</TableCell>
                     <TableCell>{project.status}</TableCell>
-                    <TableCell>
-                      {new Date(project.updated_at).toLocaleString()}
-                    </TableCell>
                     <TableCell>{project.updated_by_name || '-'}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Edit Project Status">
+                        <IconButton 
+                          color="primary" 
+                          onClick={() => handleOpenDialog('edit', project)}
+                          disabled={loading}
+                        >
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete Project Status">
+                        <IconButton 
+                          color="error" 
+                          onClick={() => handleDelete(project.project_id)}
+                          disabled={loading}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -203,16 +258,17 @@ const ProjectStatus = () => {
         </TableContainer>
 
         <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-          <DialogTitle>Add Project Status</DialogTitle>
+          <DialogTitle>{editMode ? 'Edit Project Status' : 'Add Project Status'}</DialogTitle>
           <DialogContent>
-            <Box sx={{ width: '100%', mt: 2 }}>
-              <FormControl fullWidth sx={{ mb: 2 }}>
+            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <FormControl fullWidth>
                 <InputLabel>Project</InputLabel>
                 <Select
                   value={selectedProject}
                   label="Project"
-                  onChange={(e: SelectChangeEvent<number | ''>) => 
-                    setSelectedProject(typeof e.target.value === 'number' ? e.target.value : '')}
+                  onChange={(e) => setSelectedProject(e.target.value as number)}
+                  disabled={editMode} // Disable project selection in edit mode
                 >
                   {projects.map((project) => (
                     <MenuItem key={project.project_id} value={project.project_id}>
@@ -222,69 +278,52 @@ const ProjectStatus = () => {
                 </Select>
               </FormControl>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
+              <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
                   value={selectedStatus}
                   label="Status"
                   onChange={(e) => setSelectedStatus(e.target.value)}
                 >
+                  <MenuItem value="Just Boarded">Just Boarded</MenuItem>
                   <MenuItem value="Ongoing">Ongoing</MenuItem>
                   <MenuItem value="Completed">Completed</MenuItem>
-                  <MenuItem value="Just Boarded">Just Boarded</MenuItem>
                 </Select>
               </FormControl>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
+              <Box>
                 <TextField
+                  fullWidth
                   label="Search Employee"
                   value={employeeSearch}
                   onChange={handleEmployeeSearch}
-                  fullWidth
+                  placeholder="Type to search for an employee..."
                 />
                 {employeeSearch && (
-                  <Paper 
-                    style={{ 
-                      maxHeight: 200, 
-                      overflowY: 'auto',
-                      marginTop: 8,
-                      position: 'relative',
-                      width: '100%',
-                      zIndex: 1
-                    }}
-                  >
-                    {filteredEmployees.length === 0 ? (
-                      <MenuItem disabled>No employees found</MenuItem>
-                    ) : (
-                      filteredEmployees.map((employee) => (
-                        <MenuItem
-                          key={employee.employee_id}
-                          onClick={() => handleEmployeeSelect(employee.employee_id)}
-                          selected={employee.employee_id === selectedEmployee}
-                        >
-                          {employee.employee_name}
-                        </MenuItem>
-                      ))
-                    )}
-                  </Paper>
+                  <Box sx={{ mt: 1, maxHeight: 200, overflow: 'auto', border: 1, borderColor: 'divider' }}>
+                    {filteredEmployees.map((employee) => (
+                      <Box
+                        key={employee.employee_id}
+                        sx={{
+                          p: 1,
+                          cursor: 'pointer',
+                          '&:hover': { backgroundColor: 'action.hover' },
+                          backgroundColor: selectedEmployee === employee.employee_id ? 'action.selected' : 'transparent'
+                        }}
+                        onClick={() => handleEmployeeSelect(employee.employee_id)}
+                      >
+                        {employee.employee_name}
+                      </Box>
+                    ))}
+                  </Box>
                 )}
-                {selectedEmployee && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    Selected: {employees.find(e => e.employee_id === selectedEmployee)?.employee_name}
-                  </Typography>
-                )}
-              </FormControl>
-            </Box>
+              </Box>
+            </Stack>
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseDialog} disabled={loading}>Cancel</Button>
-            <Button 
-              onClick={handleSubmit} 
-              variant="contained" 
-              color="primary"
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Add Status'}
+            <Button onClick={handleCloseDialog}>Cancel</Button>
+            <Button onClick={handleSubmit} variant="contained" color="primary" disabled={loading}>
+              {editMode ? 'Update' : 'Add'}
             </Button>
           </DialogActions>
         </Dialog>
