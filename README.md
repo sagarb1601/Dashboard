@@ -1,6 +1,6 @@
 # ED Dashboard
 
-A comprehensive HR management system built with React, Node.js, and PostgreSQL.
+A comprehensive ED management system built with React, Node.js, and PostgreSQL.
 
 ## Project Structure
 
@@ -84,5 +84,5 @@ DashBoard/
 
 ## Development Team
 
-- [Your Name]
-- [Your Teammate's Name] 
+- [kalasagar Battepati]
+- [Aniket] 
