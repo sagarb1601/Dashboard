@@ -1,4 +1,4 @@
-# HR Dashboard
+# ED Dashboard
 
 A comprehensive HR management system built with React, Node.js, and PostgreSQL.
 
