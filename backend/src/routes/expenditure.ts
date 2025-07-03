@@ -17,16 +17,25 @@ interface ExpenditureEntry {
 
 const router = Router();
 
+// Test endpoint to check if routes are accessible
+router.get('/test', (req, res) => {
+  console.log('Expenditure test endpoint hit!');
+  res.json({ message: 'Expenditure routes are working' });
+});
+
 // Get expenditures for a project
 router.get('/expenditures/:projectId', authenticateToken, async (req, res) => {
+  console.log('Expenditure endpoint hit! Project ID:', req.params.projectId);
   try {
     const { projectId } = req.params;
+    console.log('Querying database for project ID:', projectId);
     const result = await pool.query(
       `SELECT * FROM project_expenditure_entries 
        WHERE project_id = $1 
        ORDER BY year_number, period_type, period_number, field_id`,
       [projectId]
     );
+    console.log('Query result rows:', result.rows.length);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching expenditures:', error);

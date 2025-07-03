@@ -25,6 +25,7 @@ import * as yup from 'yup';
 import DashboardLayout from '../../components/DashboardLayout';
 import { Table as AntTable } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import Autocomplete from '@mui/material/Autocomplete';
 
 interface Project {
   project_id: number;
@@ -39,11 +40,18 @@ interface Project {
   group_id: number;
   technical_group_name: string;
   reporting_type?: string;
+  centre: string;
+  project_investigator_id: number;
 }
 
 interface TechnicalGroup {
   group_id: number;
   group_name: string;
+}
+
+interface Employee {
+  employee_id: number;
+  employee_name: string;
 }
 
 const drawerWidth = 240;
@@ -68,12 +76,15 @@ const validationSchema = yup.object({
   technical_group_id: yup.number()
     .required('Technical group is required')
     .positive('Please select a technical group'),
+  centre: yup.string().required('Centre is required'),
+  project_investigator_id: yup.string().required('Project Investigator is required'),
   // reporting_type: yup.string().required('Reporting type is required').oneOf(['FY', 'PQ'], 'Invalid reporting type')
 });
 
 const Projects = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [technicalGroups, setTechnicalGroups] = useState<TechnicalGroup[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [otherAgency, setOtherAgency] = useState('');
@@ -90,6 +101,8 @@ const Projects = () => {
       funding_agency: 'MeitY',
       duration_years: 1,
       technical_group_id: '',
+      centre: '',
+      project_investigator_id: '',
       // reporting_type: 'FY'
     },
     validationSchema: validationSchema,
@@ -102,6 +115,8 @@ const Projects = () => {
           total_value: Number(values.total_value),
           duration_years: Number(values.duration_years),
           group_id: Number(values.technical_group_id),
+          centre: values.centre,
+          project_investigator_id: Number(values.project_investigator_id),
         };
 
         const url = editingProject 
@@ -165,9 +180,26 @@ const Projects = () => {
     }
   };
 
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/hr/employees', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
     fetchTechnicalGroups();
+    fetchEmployees();
   }, []);
 
   const handleClickOpen = () => {
@@ -193,6 +225,8 @@ const Projects = () => {
       funding_agency: project.funding_agency,
       duration_years: project.duration_years,
       technical_group_id: project.group_id?.toString() || '',
+      centre: project.centre || '',
+      project_investigator_id: project.project_investigator_id ? String(project.project_investigator_id) : '',
       // reporting_type: project.reporting_type || 'FY'
     });
     setOpen(true);
@@ -225,7 +259,24 @@ const Projects = () => {
   };
 
   const columns: ColumnsType<Project> = [
-    { title: 'Project Name', dataIndex: 'project_name', key: 'project_name' },
+    {
+      title: 'Project Name',
+      dataIndex: 'project_name',
+      key: 'project_name',
+      render: (text) => (
+        <div style={{ whiteSpace: 'pre-line', wordBreak: 'break-word', maxWidth: 300 }}>{text}</div>
+      ),
+    },
+    { title: 'Centre', dataIndex: 'centre', key: 'centre' },
+    {
+      title: 'Project Investigator',
+      dataIndex: 'project_investigator_id',
+      key: 'project_investigator_id',
+      render: (id) => {
+        const emp = employees.find(e => e.employee_id === id);
+        return emp ? emp.employee_name : '-';
+      },
+    },
     { title: 'Group', dataIndex: 'technical_group_name', key: 'technical_group_name' },
     { title: 'Start Date', dataIndex: 'start_date', key: 'start_date', render: (date) => new Date(date).toLocaleDateString() },
     { title: 'End Date', dataIndex: 'end_date', key: 'end_date', render: (date) => new Date(date).toLocaleDateString() },
@@ -243,7 +294,6 @@ const Projects = () => {
          <IconButton onClick={() => handleDelete(record.project_id)} color="error">
             <DeleteIcon />
           </IconButton>
-
         </>
       ),
     },
@@ -429,6 +479,45 @@ const Projects = () => {
                   error={formik.touched.duration_years && Boolean(formik.errors.duration_years)}
                   helperText={formik.touched.duration_years && formik.errors.duration_years}
                 />
+
+                <FormControl fullWidth margin="normal">
+                  <InputLabel id="centre-label">Centre</InputLabel>
+                  <Select
+                    labelId="centre-label"
+                    id="centre"
+                    name="centre"
+                    value={formik.values.centre}
+                    onChange={formik.handleChange}
+                    error={formik.touched.centre && Boolean(formik.errors.centre)}
+                  >
+                    <MenuItem value="KP">KP</MenuItem>
+                    <MenuItem value="EC1">EC1</MenuItem>
+                    <MenuItem value="EC2">EC2</MenuItem>
+                  </Select>
+                  <FormHelperText>{formik.touched.centre && formik.errors.centre}</FormHelperText>
+                </FormControl>
+
+                <FormControl fullWidth margin="normal">
+                  <InputLabel shrink htmlFor="project_investigator_id">Project Investigator</InputLabel>
+                  <Autocomplete
+                    id="project_investigator_id"
+                    options={employees}
+                    getOptionLabel={(option) => option.employee_id + ' - ' + option.employee_name}
+                    value={employees.find(emp => String(emp.employee_id) === String(formik.values.project_investigator_id)) || null}
+                    onChange={(_, value) => formik.setFieldValue('project_investigator_id', value ? value.employee_id : '')}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Project Investigator"
+                        variant="outlined"
+                        error={formik.touched.project_investigator_id && Boolean(formik.errors.project_investigator_id)}
+                        helperText={formik.touched.project_investigator_id && formik.errors.project_investigator_id}
+                        required
+                      />
+                    )}
+                    isOptionEqualToValue={(option, value) => option.employee_id === value.employee_id}
+                  />
+                </FormControl>
 
                 {/*
                 <FormControl fullWidth error={formik.touched.reporting_type && Boolean(formik.errors.reporting_type)}>

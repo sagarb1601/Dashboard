@@ -3,9 +3,10 @@ import { Calendar, Card, Tag, Space, Typography, message, Tooltip, Drawer, Selec
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import type { CalendarProps } from 'antd';
-import { Travel, TravelType } from '../../types/travel';
+import { Travel, TravelType, TravelStatus } from '../../types/travel';
 import { getTravels } from '../../services/edoffice/travels';
 import isBetween from 'dayjs/plugin/isBetween';
+import { CheckCircleOutlined, CloseCircleOutlined, UserSwitchOutlined } from '@ant-design/icons';
 
 dayjs.extend(isBetween);
 
@@ -18,6 +19,30 @@ const travelTypeColors: Record<TravelType, string> = {
   foreign: 'purple',
   domestic: 'blue'
 };
+
+// Travel status configuration
+const travelStatusConfig = {
+  going: {
+    color: '#52c41a',
+    label: 'Going',
+    icon: CheckCircleOutlined
+  },
+  not_going: {
+    color: '#ff4d4f',
+    label: 'Not Going',
+    icon: CloseCircleOutlined
+  },
+  deputing: {
+    color: '#faad14',
+    label: 'Deputing Someone',
+    icon: UserSwitchOutlined
+  }
+} as const;
+
+// Create a wrapper component for icons
+const IconWrapper: React.FC<{ icon: React.ComponentType<any> }> = ({ icon: Icon }) => (
+  <Icon style={{ fontSize: '12px' }} />
+);
 
 const CustomHeader: CalendarProps<Dayjs>['headerRender'] = ({ value, onChange }) => {
   const month = value.month();
@@ -75,6 +100,67 @@ const CustomHeader: CalendarProps<Dayjs>['headerRender'] = ({ value, onChange })
   );
 };
 
+// Travel Calendar Legend Component
+const TravelCalendarLegend: React.FC = () => {
+  return (
+    <div style={{ 
+      marginBottom: '16px', 
+      padding: '8px 12px', 
+      backgroundColor: '#fafafa', 
+      borderRadius: '6px',
+      border: '1px solid #d9d9d9'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '13px', marginRight: '8px' }}>
+          Legend:
+        </span>
+        
+        {/* Travel Types */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Travel Types:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div 
+              style={{ 
+                width: '10px', 
+                height: '10px', 
+                backgroundColor: travelTypeColors.foreign, 
+                borderRadius: '2px',
+                flexShrink: 0
+              }} 
+            />
+            <span style={{ fontSize: '12px' }}>Foreign</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div 
+              style={{ 
+                width: '10px', 
+                height: '10px', 
+                backgroundColor: travelTypeColors.domestic, 
+                borderRadius: '2px',
+                flexShrink: 0
+              }} 
+            />
+            <span style={{ fontSize: '12px' }}>Domestic</span>
+          </div>
+        </div>
+        
+        {/* Travel Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Status:</span>
+          {Object.entries(travelStatusConfig).map(([status, config]) => (
+            <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ color: config.color }}>
+                <IconWrapper icon={config.icon} />
+              </div>
+              <span style={{ fontSize: '12px' }}>{config.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const EdTravelCalendarPage: React.FC = () => {
   const [travels, setTravels] = useState<Travel[]>([]);
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
@@ -107,32 +193,77 @@ const EdTravelCalendarPage: React.FC = () => {
   };
 
   const dateCellRender = (date: Dayjs) => {
+    // For month view, only show events for dates that belong to the currently viewed month
+    const currentMonth = selectedDate.month();
+    const currentYear = selectedDate.year();
+    
+    // Check if the date belongs to the current month view
+    const isCurrentMonth = date.month() === currentMonth && date.year() === currentYear;
+    
+    // If it's not the current month, return a hidden placeholder
+    if (!isCurrentMonth) {
+      return (
+        <div 
+          className="other-month-placeholder" 
+          style={{ 
+            display: 'none',
+            height: '0',
+            minHeight: '0',
+            padding: '0',
+            margin: '0',
+            border: 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Hidden placeholder for other month dates */}
+        </div>
+      );
+    }
+
     const travelsForDate = travels.filter(travel =>
       date.isBetween(dayjs(travel.onward_date), dayjs(travel.return_date), 'day', '[]')
     );
 
     return (
       <div onClick={() => handleDateClick(date)}>
-        {travelsForDate.map(travel => (
-          <Tooltip
-            key={travel.id}
-            title={
-              <div>
-                <div><strong>{travel.location}</strong></div>
-                <div>{travel.purpose}</div>
-                <div>Accommodation: {travel.accommodation}</div>
-                {travel.remarks && <div>Remarks: {travel.remarks}</div>}
+        {travelsForDate.map(travel => {
+          const status = travel.status as TravelStatus;
+          const statusConfig = status && status in travelStatusConfig ? travelStatusConfig[status] : null;
+          
+          return (
+            <Tooltip
+              key={travel.id}
+              title={
+                <div>
+                  <div><strong>{travel.location}</strong></div>
+                  <div>{travel.purpose}</div>
+                  <div>Accommodation: {travel.accommodation}</div>
+                  {statusConfig && (
+                    <div>Status: {statusConfig.label}</div>
+                  )}
+                  {travel.deputing_remarks && (
+                    <div>Deputing: {travel.deputing_remarks}</div>
+                  )}
+                  {travel.remarks && <div>Remarks: {travel.remarks}</div>}
+                </div>
+              }
+              placement="right"
+            >
+              <div style={{ cursor: 'pointer', marginBottom: 2 }}>
+                <Tag color={travelTypeColors[travel.travel_type]} style={{ width: '100%', margin: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{travel.location}</span>
+                    {statusConfig && (
+                      <div style={{ color: statusConfig.color, marginLeft: '4px' }}>
+                        <IconWrapper icon={statusConfig.icon} />
+                      </div>
+                    )}
+                  </div>
+                </Tag>
               </div>
-            }
-            placement="right"
-          >
-            <div style={{ cursor: 'pointer', marginBottom: 2 }}>
-              <Tag color={travelTypeColors[travel.travel_type]} style={{ width: '100%', margin: 0 }}>
-                {travel.location}
-              </Tag>
-            </div>
-          </Tooltip>
-        ))}
+            </Tooltip>
+          );
+        })}
       </div>
     );
   };
@@ -142,6 +273,9 @@ const EdTravelCalendarPage: React.FC = () => {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={4}>Travel Calendar</Title>
       </div>
+
+      {/* Travel Calendar Legend */}
+      <TravelCalendarLegend />
 
       <div className="calendar-container" style={{ 
         backgroundColor: '#fff',
@@ -207,6 +341,30 @@ const EdTravelCalendarPage: React.FC = () => {
           </div>
         )}
       </Drawer>
+      
+      <style>
+        {`
+          /* Hide other month placeholders completely */
+          .other-month-placeholder {
+            display: none !important;
+          }
+          /* Make other month dates transparent and non-interactive */
+          .ant-picker-calendar-date:has(.other-month-placeholder) {
+            opacity: 0.1 !important;
+            pointer-events: none !important;
+            background-color: transparent !important;
+          }
+          /* Alternative: hide the date value for other month dates */
+          .ant-picker-calendar-date:has(.other-month-placeholder) .ant-picker-calendar-date-value {
+            opacity: 0.1 !important;
+            color: #ccc !important;
+          }
+          .ant-picker-calendar-date-today .ant-picker-calendar-date-value {
+            color: #1890ff;
+            font-weight: bold;
+          }
+        `}
+      </style>
     </div>
   );
 };

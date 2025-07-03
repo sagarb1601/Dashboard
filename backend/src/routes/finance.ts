@@ -39,15 +39,17 @@ router.post('/projects', authenticateToken, async (req: Request, res: Response):
       total_value,
       funding_agency,
       duration_years,
-      group_id
+      group_id,
+      centre,
+      project_investigator_id
     } = req.body;
 
     await client.query('BEGIN');
 
     // Create the project
     const projectResult = await client.query(
-      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id]
+      'INSERT INTO finance_projects (project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, centre, project_investigator_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, centre, project_investigator_id]
     );
     const project = projectResult.rows[0];
 
@@ -108,6 +110,8 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
       funding_agency,
       duration_years,
       group_id,
+      centre,
+      project_investigator_id,
       budget_fields
     } = req.body;
 
@@ -120,10 +124,12 @@ router.put('/projects/:id', authenticateToken, async (req: Request, res: Respons
            total_value = $5, 
            funding_agency = $6, 
            duration_years = $7, 
-           group_id = $8
-       WHERE project_id = $9 
+           group_id = $8,
+           centre = $9,
+           project_investigator_id = $10
+       WHERE project_id = $11 
        RETURNING *`,
-      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, id]
+      [project_name, start_date, end_date, extension_end_date, total_value, funding_agency, duration_years, group_id, centre, project_investigator_id, id]
     );
 
     if (result.rows.length === 0) {
@@ -1353,6 +1359,562 @@ router.post('/grant-received/bulk-edit', authenticateToken, async (req: Request,
     });
   } finally {
     client.release();
+  }
+});
+
+// ===== DASHBOARD ROUTES =====
+
+// Get overall financial summary
+router.get('/dashboard/summary', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Get total projects count
+    const totalProjectsResult = await pool.query(`
+      SELECT COUNT(*) as total_projects 
+      FROM finance_projects
+    `);
+
+    // Get total project value
+    const totalValueResult = await pool.query(`
+      SELECT COALESCE(SUM(total_value), 0) as total_value 
+      FROM finance_projects
+    `);
+
+    // Get current year spending
+    const currentYear = new Date().getFullYear();
+    console.log('Current year for finance dashboard:', currentYear);
+    
+    // Check if we have the new structure (calendar_year) or old structure (year_number)
+    const tableStructureCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'project_expenditure_entries' 
+      AND column_name IN ('calendar_year', 'year_number')
+    `);
+    
+    let currentYearSpendingResult;
+    if (tableStructureCheck.rows.some(row => row.column_name === 'calendar_year')) {
+      // New structure with calendar_year
+      currentYearSpendingResult = await pool.query(`
+        SELECT COALESCE(SUM(amount_spent), 0) as current_year_spent
+        FROM project_expenditure_entries 
+        WHERE calendar_year = $1
+      `, [currentYear]);
+    } else {
+      // Old structure with year_number
+      currentYearSpendingResult = await pool.query(`
+        SELECT COALESCE(SUM(amount_spent), 0) as current_year_spent
+        FROM project_expenditure_entries 
+        WHERE year_number = $1
+      `, [currentYear]);
+    }
+
+    // Get current year budget (from budget entries)
+    const currentYearBudgetResult = await pool.query(`
+      SELECT COALESCE(SUM(pbe.amount), 0) as current_year_budget
+      FROM project_budget_entries pbe
+      JOIN finance_projects fp ON pbe.project_id = fp.project_id
+      WHERE pbe.year_number = $1
+    `, [currentYear]);
+    
+    console.log('Current year spending result:', currentYearSpendingResult.rows[0]);
+    console.log('Current year budget result:', currentYearBudgetResult.rows[0]);
+
+    const summary = {
+      total_projects: parseInt(totalProjectsResult.rows[0].total_projects),
+      total_value: parseFloat(totalValueResult.rows[0].total_value),
+      current_year_spent: parseFloat(currentYearSpendingResult.rows[0].current_year_spent),
+      current_year_budget: parseFloat(currentYearBudgetResult.rows[0].current_year_budget),
+      current_year_pending: parseFloat(currentYearBudgetResult.rows[0].current_year_budget) - parseFloat(currentYearSpendingResult.rows[0].current_year_spent)
+    };
+
+    res.json(summary);
+  } catch (error) {
+    console.error('Error fetching financial summary:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get group-wise projects
+router.get('/dashboard/group-projects', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Debug: Check what groups exist in technical_groups table
+    const groupsDebug = await pool.query(`
+      SELECT group_id, group_name FROM technical_groups ORDER BY group_name
+    `);
+    console.log('Available technical groups:', groupsDebug.rows);
+
+    // Debug: Check what group_id values exist in finance_projects
+    const projectsGroupDebug = await pool.query(`
+      SELECT DISTINCT group_id, COUNT(*) as project_count 
+      FROM finance_projects 
+      GROUP BY group_id 
+      ORDER BY group_id
+    `);
+    console.log('Projects by group_id:', projectsGroupDebug.rows);
+
+    // Debug: Show all projects with their group information
+    const allProjectsDebug = await pool.query(`
+      SELECT fp.project_name, fp.group_id, tg.group_name
+      FROM finance_projects fp
+      LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+      ORDER BY fp.project_name
+    `);
+    console.log('All projects with group info:', allProjectsDebug.rows);
+
+    const result = await pool.query(`
+      SELECT 
+        tg.group_name,
+        COUNT(fp.project_id) as project_count,
+        COALESCE(SUM(fp.total_value), 0) as total_budget,
+        COALESCE(SUM(
+          (SELECT COALESCE(SUM(pee.amount_spent), 0) 
+           FROM project_expenditure_entries pee 
+           WHERE pee.project_id = fp.project_id)
+        ), 0) as total_spent
+      FROM technical_groups tg
+      LEFT JOIN finance_projects fp ON tg.group_id = fp.group_id
+      GROUP BY tg.group_id, tg.group_name
+      ORDER BY total_budget DESC
+    `);
+
+    console.log('Group projects result:', result.rows);
+
+    const groupProjects = result.rows.map(row => ({
+      group_name: row.group_name,
+      project_count: parseInt(row.project_count),
+      total_budget: parseFloat(row.total_budget),
+      total_spent: parseFloat(row.total_spent),
+      pending_amount: parseFloat(row.total_budget) - parseFloat(row.total_spent)
+    }));
+
+    res.json(groupProjects);
+  } catch (error) {
+    console.error('Error fetching group projects:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get project status distribution
+router.get('/dashboard/project-status', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date >= CURRENT_DATE THEN 'Ongoing'
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date >= CURRENT_DATE THEN 'Ongoing'
+          ELSE COALESCE(ps.status, 'Unknown')
+        END as project_status,
+        COUNT(fp.project_id) as project_count,
+        COALESCE(SUM(fp.total_value), 0) as total_value
+      FROM finance_projects fp
+      LEFT JOIN project_status ps ON fp.project_id = ps.project_id
+      GROUP BY 
+        CASE 
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date >= CURRENT_DATE THEN 'Ongoing'
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date >= CURRENT_DATE THEN 'Ongoing'
+          ELSE COALESCE(ps.status, 'Unknown')
+        END
+      ORDER BY project_count DESC
+    `);
+
+    const projectStatus = result.rows.map(row => ({
+      status: row.project_status,
+      count: parseInt(row.project_count),
+      value: parseFloat(row.total_value)
+    }));
+
+    res.json(projectStatus);
+  } catch (error) {
+    console.error('Error fetching project status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get yearly spending data
+router.get('/dashboard/yearly-spending', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const currentYear = new Date().getFullYear();
+    
+    // Get current year data
+    const currentYearResult = await pool.query(`
+      SELECT 
+        COALESCE(SUM(pee.amount_spent), 0) as total_spent,
+        COALESCE(SUM(pbe.amount), 0) as total_budget
+      FROM project_expenditure_entries pee
+      FULL OUTER JOIN project_budget_entries pbe ON pee.project_id = pbe.project_id AND pee.year_number = pbe.year_number
+      WHERE pee.year_number = $1 OR pbe.year_number = $1
+    `, [currentYear]);
+
+    // Get previous year data for comparison
+    const previousYearResult = await pool.query(`
+      SELECT 
+        COALESCE(SUM(pee.amount_spent), 0) as total_spent,
+        COALESCE(SUM(pbe.amount), 0) as total_budget
+      FROM project_expenditure_entries pee
+      FULL OUTER JOIN project_budget_entries pbe ON pee.project_id = pbe.project_id AND pee.year_number = pbe.year_number
+      WHERE pee.year_number = $1 OR pbe.year_number = $1
+    `, [currentYear - 1]);
+
+    const yearlySpending = {
+      current_year: {
+        year: currentYear,
+        spent: parseFloat(currentYearResult.rows[0].total_spent),
+        budget: parseFloat(currentYearResult.rows[0].total_budget),
+        pending: parseFloat(currentYearResult.rows[0].total_budget) - parseFloat(currentYearResult.rows[0].total_spent)
+      },
+      previous_year: {
+        year: currentYear - 1,
+        spent: parseFloat(previousYearResult.rows[0].total_spent),
+        budget: parseFloat(previousYearResult.rows[0].total_budget),
+        pending: parseFloat(previousYearResult.rows[0].total_budget) - parseFloat(previousYearResult.rows[0].total_spent)
+      }
+    };
+
+    res.json(yearlySpending);
+  } catch (error) {
+    console.error('Error fetching yearly spending:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get monthly trends
+router.get('/dashboard/monthly-trend', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const currentYear = new Date().getFullYear();
+    
+    const result = await pool.query(`
+      SELECT 
+        EXTRACT(MONTH FROM pee.expenditure_date) as month,
+        COALESCE(SUM(pee.amount_spent), 0) as monthly_spent
+      FROM project_expenditure_entries pee
+      WHERE EXTRACT(YEAR FROM pee.expenditure_date) = $1
+      GROUP BY EXTRACT(MONTH FROM pee.expenditure_date)
+      ORDER BY month
+    `, [currentYear]);
+
+    const monthlyTrends = result.rows.map(row => ({
+      month: parseInt(row.month),
+      month_name: new Date(currentYear, parseInt(row.month) - 1).toLocaleString('default', { month: 'long' }),
+      spent: parseFloat(row.monthly_spent)
+    }));
+
+    res.json(monthlyTrends);
+  } catch (error) {
+    console.error('Error fetching monthly trends:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get top projects by value
+router.get('/dashboard/top-projects', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        fp.project_name,
+        fp.total_value,
+        fp.end_date,
+        fp.extension_end_date,
+        CASE 
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date < CURRENT_DATE THEN 'Completed'
+          WHEN fp.end_date IS NOT NULL AND fp.end_date >= CURRENT_DATE THEN 'Ongoing'
+          WHEN fp.extension_end_date IS NOT NULL AND fp.extension_end_date >= CURRENT_DATE THEN 'Ongoing'
+          ELSE 'Unknown'
+        END as calculated_status,
+        COALESCE(ps.status, 'Unknown') as stored_status,
+        tg.group_name,
+        COALESCE(SUM(pee.amount_spent), 0) as total_spent
+      FROM finance_projects fp
+      LEFT JOIN technical_groups tg ON fp.group_id = tg.group_id
+      LEFT JOIN project_status ps ON fp.project_id = ps.project_id
+      LEFT JOIN project_expenditure_entries pee ON fp.project_id = pee.project_id
+      GROUP BY fp.project_id, fp.project_name, fp.total_value, fp.end_date, fp.extension_end_date, ps.status, tg.group_name
+      ORDER BY fp.total_value DESC
+      LIMIT 10
+    `);
+
+    const topProjects = result.rows.map(row => {
+      // Use calculated status if stored status is 'Unknown', otherwise use stored status
+      const finalStatus = row.stored_status === 'Unknown' ? row.calculated_status : row.stored_status;
+      
+      return {
+        project_name: row.project_name,
+        total_budget: parseFloat(row.total_value),
+        total_spent: parseFloat(row.total_spent),
+        pending_amount: parseFloat(row.total_value) - parseFloat(row.total_spent),
+        status: finalStatus,
+        group_name: row.group_name,
+        end_date: row.end_date,
+        extension_end_date: row.extension_end_date
+      };
+    });
+
+    res.json(topProjects);
+  } catch (error) {
+    console.error('Error fetching top projects:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get budget vs expenditure per project
+router.get('/dashboard/budget-vs-expenditure', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    console.log('=== Budget vs Expenditure Debug ===');
+    
+    const result = await pool.query(`
+      SELECT 
+        fp.project_name,
+        fp.total_value as project_total_value,
+        fp.total_value as budget, -- Use project's total value as budget
+        COALESCE(SUM(pee.amount_spent), 0) as total_expenditure_entries
+      FROM finance_projects fp
+      LEFT JOIN project_expenditure_entries pee ON fp.project_id = pee.project_id
+      GROUP BY fp.project_id, fp.project_name, fp.total_value
+      ORDER BY fp.total_value DESC
+      LIMIT 15
+    `);
+
+    console.log('Raw query results:', result.rows);
+
+    const budgetVsExpenditure = result.rows.map(row => {
+      const budget = parseFloat(row.budget);
+      const expenditure = parseFloat(row.total_expenditure_entries);
+      const projectValue = parseFloat(row.project_total_value);
+      
+      console.log(`Project: ${row.project_name}`);
+      console.log(`  - Project Total Value: ${projectValue}`);
+      console.log(`  - Budget (from total_value): ${budget}`);
+      console.log(`  - Expenditure Sum: ${expenditure}`);
+      
+      return {
+        project_name: row.project_name,
+        budget: budget,
+        expenditure: expenditure,
+        project_total_value: projectValue
+      };
+    });
+
+    console.log('Processed data:', budgetVsExpenditure);
+    res.json(budgetVsExpenditure);
+  } catch (error) {
+    console.error('Error fetching budget vs expenditure:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get remaining budget per project
+router.get('/dashboard/remaining-budget', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        fp.project_name,
+        fp.total_value as total_budget,
+        COALESCE(SUM(pee.amount_spent), 0) as total_expenditure,
+        (fp.total_value - COALESCE(SUM(pee.amount_spent), 0)) as remaining_budget
+      FROM finance_projects fp
+      LEFT JOIN project_expenditure_entries pee ON fp.project_id = pee.project_id
+      GROUP BY fp.project_id, fp.project_name, fp.total_value
+      HAVING (fp.total_value - COALESCE(SUM(pee.amount_spent), 0)) > 0
+      ORDER BY remaining_budget DESC
+      LIMIT 15
+    `);
+
+    const remainingBudget = result.rows.map(row => ({
+      project_name: row.project_name,
+      remaining_budget: parseFloat(row.remaining_budget),
+      total_budget: parseFloat(row.total_budget),
+      total_expenditure: parseFloat(row.total_expenditure)
+    }));
+
+    res.json(remainingBudget);
+  } catch (error) {
+    console.error('Error fetching remaining budget:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get project funding overview by funding agency
+router.get('/dashboard/funding-overview', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    // First, let's debug what funding agencies exist
+    const debugResult = await pool.query(`
+      SELECT DISTINCT funding_agency, COUNT(*) as project_count
+      FROM finance_projects 
+      GROUP BY funding_agency
+      ORDER BY project_count DESC
+    `);
+    console.log('Available funding agencies:', debugResult.rows);
+
+    // Also show project names and their funding agencies
+    const projectDebugResult = await pool.query(`
+      SELECT project_name, funding_agency, total_value
+      FROM finance_projects 
+      ORDER BY total_value DESC
+    `);
+    console.log('Projects and their funding agencies:', projectDebugResult.rows);
+
+    const result = await pool.query(`
+      SELECT 
+        COALESCE(fp.funding_agency, 'Unknown') as funding_agency,
+        COUNT(DISTINCT fp.project_id) as project_count,
+        COALESCE(SUM(fp.total_value), 0) as total_value,
+        COALESCE(SUM(pee.amount_spent), 0) as total_expenditure,
+        (COALESCE(SUM(fp.total_value), 0) - COALESCE(SUM(pee.amount_spent), 0)) as remaining_budget
+      FROM finance_projects fp
+      LEFT JOIN project_expenditure_entries pee ON fp.project_id = pee.project_id
+      GROUP BY fp.funding_agency
+      ORDER BY total_value DESC
+    `);
+
+    const fundingOverview = result.rows.map(row => ({
+      funding_agency: row.funding_agency,
+      project_count: parseInt(row.project_count),
+      total_value: parseFloat(row.total_value),
+      total_expenditure: parseFloat(row.total_expenditure),
+      remaining_budget: parseFloat(row.remaining_budget)
+    }));
+
+    res.json(fundingOverview);
+  } catch (error) {
+    console.error('Error fetching funding overview:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get grant history over time
+router.get('/dashboard/grant-history', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        gr.received_date,
+        fp.project_name,
+        COALESCE(SUM(gr.amount), 0) as amount_received
+      FROM grant_received gr
+      JOIN finance_projects fp ON gr.project_id = fp.project_id
+      WHERE gr.received_date IS NOT NULL
+      GROUP BY gr.received_date, fp.project_name
+      ORDER BY gr.received_date ASC
+      LIMIT 100
+    `);
+
+    const grantHistory = result.rows.map(row => ({
+      date: row.received_date,
+      project_name: row.project_name,
+      amount_received: parseFloat(row.amount_received)
+    }));
+
+    res.json(grantHistory);
+  } catch (error) {
+    console.error('Error fetching grant history:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get financial year budget remaining per project
+router.get('/dashboard/fy-budget-remaining', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const selectedYear = parseInt(req.query.year as string) || new Date().getFullYear();
+    console.log(`Fetching FY budget data for year: ${selectedYear}`);
+    
+    // First, let's check what budget data exists in the database
+    const budgetCheckResult = await pool.query(`
+      SELECT DISTINCT year_number, COUNT(*) as budget_entries_count
+      FROM project_budget_entries 
+      GROUP BY year_number 
+      ORDER BY year_number DESC
+    `);
+    console.log('Available budget years in database:', budgetCheckResult.rows);
+
+    // Check what projects exist
+    const projectsCheckResult = await pool.query(`
+      SELECT COUNT(*) as total_projects FROM finance_projects
+    `);
+    console.log('Total projects in database:', projectsCheckResult.rows[0].total_projects);
+
+    // Check budget entries for the selected year
+    const yearBudgetCheckResult = await pool.query(`
+      SELECT COUNT(*) as budget_entries_for_year
+      FROM project_budget_entries 
+      WHERE year_number = $1
+    `, [selectedYear]);
+    console.log(`Budget entries for year ${selectedYear}:`, yearBudgetCheckResult.rows[0].budget_entries_for_year);
+
+    const result = await pool.query(`
+      SELECT 
+        fp.project_name,
+        fp.total_value as total_project_budget,
+        COALESCE(SUM(pbe.amount), 0) as fy_budget_allocated,
+        COALESCE(SUM(pee.amount_spent), 0) as fy_expenditure,
+        (COALESCE(SUM(pbe.amount), 0) - COALESCE(SUM(pee.amount_spent), 0)) as fy_budget_remaining,
+        CASE 
+          WHEN COALESCE(SUM(pbe.amount), 0) = 0 THEN 'No FY Budget'
+          WHEN COALESCE(SUM(pee.amount_spent), 0) >= COALESCE(SUM(pbe.amount), 0) THEN 'Exhausted'
+          WHEN (COALESCE(SUM(pee.amount_spent), 0) / COALESCE(SUM(pbe.amount), 1)) >= 0.8 THEN 'High Utilization'
+          WHEN (COALESCE(SUM(pee.amount_spent), 0) / COALESCE(SUM(pbe.amount), 1)) >= 0.5 THEN 'Medium Utilization'
+          ELSE 'Low Utilization'
+        END as utilization_status
+      FROM finance_projects fp
+      LEFT JOIN project_budget_entries pbe ON fp.project_id = pbe.project_id AND pbe.year_number = $1
+      LEFT JOIN project_expenditure_entries pee ON fp.project_id = pee.project_id AND pee.year_number = $1
+      GROUP BY fp.project_id, fp.project_name, fp.total_value
+      HAVING COALESCE(SUM(pbe.amount), 0) > 0
+      ORDER BY fy_budget_remaining DESC
+      LIMIT 20
+    `, [selectedYear]);
+
+    console.log(`Query returned ${result.rows.length} projects for year ${selectedYear}`);
+    console.log('Sample data:', result.rows.slice(0, 3));
+
+    let fyBudgetRemaining;
+    
+    // If no data found, let's show all projects with their total values
+    if (result.rows.length === 0) {
+      console.log('No budget data found for selected year, showing all projects...');
+      const fallbackResult = await pool.query(`
+        SELECT 
+          fp.project_name,
+          fp.total_value as total_project_budget,
+          0 as fy_budget_allocated,
+          0 as fy_expenditure,
+          0 as fy_budget_remaining,
+          'No Budget Data' as utilization_status
+        FROM finance_projects fp
+        ORDER BY fp.total_value DESC
+        LIMIT 20
+      `);
+
+      fyBudgetRemaining = fallbackResult.rows.map(row => ({
+        project_name: row.project_name,
+        total_project_budget: parseFloat(row.total_project_budget),
+        fy_budget_allocated: 0,
+        fy_expenditure: 0,
+        fy_budget_remaining: 0,
+        utilization_status: 'No Budget Data',
+        utilization_percentage: 0
+      }));
+
+      console.log(`Showing ${fyBudgetRemaining.length} projects with no budget data for ${selectedYear}`);
+    } else {
+      fyBudgetRemaining = result.rows.map(row => ({
+        project_name: row.project_name,
+        total_project_budget: parseFloat(row.total_project_budget),
+        fy_budget_allocated: parseFloat(row.fy_budget_allocated),
+        fy_expenditure: parseFloat(row.fy_expenditure),
+        fy_budget_remaining: parseFloat(row.fy_budget_remaining),
+        utilization_status: row.utilization_status,
+        utilization_percentage: Math.round((parseFloat(row.fy_expenditure) / parseFloat(row.fy_budget_allocated)) * 100)
+      }));
+    }
+
+    console.log(`Found ${fyBudgetRemaining.length} projects with FY budget data for ${selectedYear}`);
+    res.json(fyBudgetRemaining);
+  } catch (error) {
+    console.error('Error fetching FY budget remaining:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

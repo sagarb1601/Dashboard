@@ -28,4 +28,44 @@ api.interceptors.response.use(
     }
     return Promise.reject(error);
   }
-); 
+);
+
+// HR API functions
+export const hrAPI = {
+  // Get all employees
+  getEmployees: () => api.get('/hr/employees'),
+  
+  // Get all designations
+  getDesignations: () => api.get('/hr/designations'),
+  
+  // Get all technical groups
+  getTechnicalGroups: () => api.get('/hr/technical_groups'),
+  
+  // Add new employee
+  addEmployee: (employee: any) => api.post('/hr/employees', employee),
+  
+  // Update employee
+  updateEmployee: (id: number, employee: any) => api.put(`/hr/employees/${id}`, employee),
+  
+  // Get employee by ID
+  getEmployee: (id: number) => api.get(`/hr/employees/${id}`),
+
+  // Bulk upload employees
+  bulkUploadEmployees: (employees: any[]) => api.post('/hr/employees/bulk-upload', { employees }),
+
+  // Get employees without technical group
+  getEmployeesWithoutGroup: () => api.get('/hr/employees/without-group'),
+
+  // Assign technical group to employee
+  assignGroupToEmployee: (employeeId: number, technicalGroupId: number | null) => 
+    api.put(`/hr/employees/${employeeId}/assign-group`, { technical_group_id: technicalGroupId })
+};
+
+// Technical Groups API functions
+export const technicalGroupsAPI = {
+  // Get all technical groups
+  getTechnicalGroups: () => api.get('/technical-groups'),
+  
+  // Add new technical group
+  addTechnicalGroup: (group: any) => api.post('/technical-groups', group)
+}; 

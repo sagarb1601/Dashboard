@@ -92,6 +92,18 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
             { expiresIn: '24h' }
         );
 
+        // Get group_id for TG users
+        let group_id = null;
+        if (user.role === 'tg') {
+            const groupResult = await pool.query(
+                'SELECT group_id FROM technical_groups WHERE LOWER(group_name) = LOWER($1)',
+                [user.username]
+            );
+            if (groupResult.rows.length > 0) {
+                group_id = groupResult.rows[0].group_id;
+            }
+        }
+
         // Send response with CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -103,7 +115,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
             user: {
                 id: user.id,
                 username: user.username,
-                role: user.role
+                role: user.role,
+                group_id
             }
         });
         console.log('=== Login Request Complete ===');
@@ -213,22 +226,17 @@ router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Pr
             return;
         }
 
-        // First, let's check all technical groups
-        const allGroupsQuery = 'SELECT group_id, group_name FROM technical_groups';
-        const allGroupsResult = await pool.query(allGroupsQuery);
-        console.log('All available technical groups:', allGroupsResult.rows);
-
-        // Get group_id by matching username with technical group name
-        const groupQuery = 'SELECT group_id, group_name FROM technical_groups WHERE LOWER(group_name) = LOWER($1)';
-        console.log('Group query:', groupQuery, 'with params:', [req.user.username]);
-        console.log('Attempting to match username:', req.user.username, 'with technical groups');
-        console.log('Username to match (lowercase):', req.user.username.toLowerCase());
-        const groupResult = await pool.query(groupQuery, [req.user.username]);
-        console.log('Group match result:', groupResult.rows);
-
-        const group_id = groupResult.rows[0]?.group_id;
-        console.log('Group ID from technical_groups:', group_id);
-        console.log('Group name from technical_groups:', groupResult.rows[0]?.group_name);
+        // Get group_id for TG users
+        let group_id = null;
+        if (req.user.role === 'tg') {
+            const groupResult = await pool.query(
+                'SELECT group_id FROM technical_groups WHERE LOWER(group_name) = LOWER($1)',
+                [req.user.username]
+            );
+            if (groupResult.rows.length > 0) {
+                group_id = groupResult.rows[0].group_id;
+            }
+        }
 
         const userData = {
             ...userResult.rows[0],

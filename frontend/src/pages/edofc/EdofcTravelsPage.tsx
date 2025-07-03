@@ -12,7 +12,7 @@ import {
   DeleteOutlined,
   PlusOutlined 
 } from '@ant-design/icons';
-import { Travel, TravelType } from '../../types/travel';
+import { Travel, TravelType, TravelStatus } from '../../types/travel';
 import { 
   getTravels, createTravel, updateTravel, deleteTravel 
 } from '../../services/edoffice/travels';
@@ -20,7 +20,7 @@ import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -28,6 +28,24 @@ const { Option } = Select;
 const travelTypeColors: Record<TravelType, string> = {
   foreign: 'purple',
   domestic: 'blue'
+};
+
+const getStatusColor = (status: TravelStatus) => {
+  switch (status) {
+    case 'going': return 'green';
+    case 'not_going': return 'red';
+    case 'deputing': return 'orange';
+    default: return 'default';
+  }
+};
+
+const getStatusText = (status: TravelStatus) => {
+  switch (status) {
+    case 'going': return 'Going';
+    case 'not_going': return 'Not Going';
+    case 'deputing': return 'Deputing Someone';
+    default: return 'Unknown';
+  }
 };
 
 // Add custom styles for the modal
@@ -105,6 +123,7 @@ const EdofcTravelsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTravel, setEditingTravel] = useState<Travel | null>(null);
+  const [viewMode, setViewMode] = useState<'upcoming' | 'past'>('upcoming');
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
@@ -243,12 +262,23 @@ const EdofcTravelsPage: React.FC = () => {
     }
   }, [modalVisible]);
 
-  // Sort travels by nearest date
-  const sortedTravels = [...travels].sort((a, b) => {
-    const dateA = dayjs(a.onward_date);
-    const dateB = dayjs(b.onward_date);
-    return dateA.diff(dateB);
-  });
+  // Filter and sort travels based on view mode
+  const currentDate = dayjs().startOf('day');
+  
+  const filteredAndSortedTravels = [...travels]
+    .filter(travel => {
+      const travelDate = dayjs(travel.onward_date);
+      if (viewMode === 'upcoming') {
+        return travelDate.isSameOrAfter(currentDate);
+      } else {
+        return travelDate.isBefore(currentDate);
+      }
+    })
+    .sort((a, b) => {
+      const dateA = dayjs(a.onward_date);
+      const dateB = dayjs(b.onward_date);
+      return viewMode === 'upcoming' ? dateA.diff(dateB) : dateB.diff(dateA);
+    });
 
   return (
     <div style={{ padding: 24 }}>
@@ -262,15 +292,47 @@ const EdofcTravelsPage: React.FC = () => {
         </Button>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space wrap>
           <Tag color="purple">Foreign Travel</Tag>
           <Tag color="blue">Domestic Travel</Tag>
         </Space>
+        
+        <Space>
+          <Button 
+            type={viewMode === 'upcoming' ? 'primary' : 'default'}
+            onClick={() => setViewMode('upcoming')}
+          >
+            Upcoming Travels
+          </Button>
+          <Button 
+            type={viewMode === 'past' ? 'primary' : 'default'}
+            onClick={() => setViewMode('past')}
+          >
+            Past Travels
+          </Button>
+        </Space>
       </div>
 
+      {filteredAndSortedTravels.length === 0 && !loading && (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '40px', 
+          backgroundColor: '#fafafa', 
+          borderRadius: '8px',
+          marginBottom: '16px'
+        }}>
+          <p style={{ fontSize: '16px', color: '#666', margin: 0 }}>
+            {viewMode === 'upcoming' 
+              ? 'No upcoming travels found.' 
+              : 'No past travels found.'
+            }
+          </p>
+        </div>
+      )}
+
       <List
-        dataSource={sortedTravels}
+        dataSource={filteredAndSortedTravels}
         loading={loading}
         renderItem={travel => (
           <List.Item style={{ marginBottom: '16px' }}>
@@ -319,6 +381,22 @@ const EdofcTravelsPage: React.FC = () => {
                       <div style={cardTextStyle}>{travel.remarks}</div>
                     </div>
                   )}
+
+                  <div style={cardSectionStyle}>
+                    <strong>ED Status:</strong>
+                    <div style={{ marginTop: 4 }}>
+                      <Tag color={getStatusColor(travel.status)}>
+                        {getStatusText(travel.status)}
+                      </Tag>
+                    </div>
+                    {travel.status === 'deputing' && travel.deputing_remarks && (
+                      <div style={{ marginTop: 4 }}>
+                        <Text type="secondary">
+                          <strong>Deputing:</strong> {travel.deputing_remarks}
+                        </Text>
+                      </div>
+                    )}
+                  </div>
 
                   <div style={cardActionsStyle}>
                     <Button 

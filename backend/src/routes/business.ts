@@ -2000,4 +2000,34 @@ router.post('/purchase-orders/:poId/auto-update-status', authenticateToken, asyn
   }
 });
 
+// ==================== Payments Routes ====================
+router.get('/payments', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        ep.id,
+        ep.entity_id,
+        ep.po_id,
+        ep.payment_date,
+        ep.amount,
+        ep.status,
+        ep.remarks,
+        ep.billing_start_date,
+        ep.billing_end_date,
+        be.name as entity_name,
+        c.client_name,
+        po.invoice_no
+      FROM entity_payments ep
+      JOIN business_entities be ON ep.entity_id = be.id
+      LEFT JOIN clients c ON be.client_id = c.id
+      LEFT JOIN purchase_orders_bd po ON ep.po_id = po.po_id
+      ORDER BY ep.payment_date DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
 export default router; 

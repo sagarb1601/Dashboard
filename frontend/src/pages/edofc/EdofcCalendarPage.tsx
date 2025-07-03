@@ -107,9 +107,9 @@ const EdofcCalendarPage: React.FC = () => {
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
-      const start = dayjs(`${values.startDate}T${values.startTime}`).format('YYYY-MM-DDTHH:mm:ss');
-      const end = dayjs(`${values.endDate}T${values.endTime}`).format('YYYY-MM-DDTHH:mm:ss');
-      
+      // Use local time string (IST) for DB
+      const start = dayjs(`${values.startDate}T${values.startTime}`).format('YYYY-MM-DD HH:mm:ss');
+      const end = dayjs(`${values.endDate}T${values.endTime}`).format('YYYY-MM-DD HH:mm:ss');
       const eventPayload = {
         title: values.title,
         description: values.description,
@@ -118,9 +118,8 @@ const EdofcCalendarPage: React.FC = () => {
         venue: values.venue,
         meeting_link: values.meeting_link,
         reminder_minutes: values.reminder_minutes,
-        event_type: values.event_type || 'event' // Add event_type with default value
+        event_type: values.event_type || 'event'
       };
-      
       if (editingEvent) {
         await updateCalendarEvent(editingEvent.id, eventPayload);
         message.success('Event updated');
@@ -146,6 +145,31 @@ const EdofcCalendarPage: React.FC = () => {
 
   // Custom cell renderer for calendar
   const dateCellRender = (date: Moment) => {
+    // Only show events for dates that belong to the currently viewed month
+    const currentMonth = selectedDate.month();
+    const currentYear = selectedDate.year();
+    
+    // Check if the date belongs to the current month view
+    const isCurrentMonth = date.month() === currentMonth && date.year() === currentYear;
+    
+    // If it's not the current month, show a disabled cell
+    if (!isCurrentMonth) {
+      return (
+        <div 
+          style={{
+            opacity: 0.3,
+            pointerEvents: 'none',
+            color: '#ccc',
+            backgroundColor: '#f5f5f5',
+            height: '100%',
+            minHeight: '60px'
+          }}
+        >
+          {/* Empty cell for dates from other months */}
+        </div>
+      );
+    }
+    
     const eventsForDate = events.filter(ev =>
       dayjs(date.toDate()).isBetween(ev.start_time, ev.end_time, 'day', '[]')
     );
@@ -179,7 +203,7 @@ const EdofcCalendarPage: React.FC = () => {
       );
     }
 
-    // Show up to 3 events directly in the cell
+    // Show up to 3 events directly in the cell with only icons and status
     return (
       <div>
         {eventsForDate.slice(0, 3).map(ev => (
@@ -197,8 +221,13 @@ const EdofcCalendarPage: React.FC = () => {
             placement="right"
           >
             <div style={{ cursor: 'pointer', marginBottom: 2 }}>
-              <Tag color={eventTypeColors[ev.event_type]} style={{ width: '100%', margin: 0 }}>
-                {ev.title}
+              <Tag color={eventTypeColors[ev.event_type]} style={{ width: '100%', margin: 0, textAlign: 'center' }}>
+                {ev.event_type === 'meeting' && '📅'}
+                {ev.event_type === 'training' && '🎓'}
+                {ev.event_type === 'event' && '📋'}
+                {ev.event_type === 'other' && '📌'}
+                {' '}
+                {ev.event_type.toUpperCase()}
               </Tag>
             </div>
           </Tooltip>

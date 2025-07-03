@@ -11,6 +11,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import type { CalendarProps } from 'antd';
 import isBetween from 'dayjs/plugin/isBetween';
+import { CheckCircleOutlined, CloseCircleOutlined, UserSwitchOutlined } from '@ant-design/icons';
 
 dayjs.extend(isBetween);
 
@@ -24,6 +25,43 @@ const travelTypeColors: Record<TravelType, string> = {
   foreign: 'purple',
   domestic: 'blue'
 };
+
+// Status icons and colors
+const statusConfig = {
+  going: { icon: CheckCircleOutlined, color: '#52c41a', text: 'Going' },
+  not_going: { icon: CloseCircleOutlined, color: '#ff4d4f', text: 'Not Going' },
+  deputing: { icon: UserSwitchOutlined, color: '#1890ff', text: 'Deputing' }
+};
+
+// Create a wrapper component for icons
+const IconWrapper: React.FC<{ icon: React.ComponentType<any>; color?: string; fontSize?: string }> = ({ 
+  icon: Icon, 
+  color = 'inherit', 
+  fontSize = '12px' 
+}) => (
+  <Icon style={{ color, fontSize }} />
+);
+
+// Legend component
+const TravelStatusLegend: React.FC = () => (
+  <div style={{ 
+    display: 'flex', 
+    gap: '16px', 
+    marginBottom: '16px',
+    padding: '12px',
+    backgroundColor: '#f5f5f5',
+    borderRadius: '6px',
+    border: '1px solid #d9d9d9'
+  }}>
+    <div style={{ fontWeight: 'bold', marginRight: '8px' }}>Status:</div>
+    {Object.entries(statusConfig).map(([key, config]) => (
+      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <IconWrapper icon={config.icon} color={config.color} fontSize="16px" />
+        <span>{config.text}</span>
+      </div>
+    ))}
+  </div>
+);
 
 const EdofcTravelCalendarPage: React.FC = () => {
   const [travels, setTravels] = useState<Travel[]>([]);
@@ -108,32 +146,71 @@ const EdofcTravelCalendarPage: React.FC = () => {
   };
 
   const dateCellRender = (date: Dayjs) => {
+    // For month view, only show events for dates that belong to the currently viewed month
+    const currentMonth = selectedDate.month();
+    const currentYear = selectedDate.year();
+    
+    // Check if the date belongs to the current month view
+    const isCurrentMonth = date.month() === currentMonth && date.year() === currentYear;
+    
+    // If it's not the current month, return a hidden placeholder
+    if (!isCurrentMonth) {
+      return (
+        <div 
+          className="other-month-placeholder" 
+          style={{ 
+            display: 'none',
+            height: '0',
+            minHeight: '0',
+            padding: '0',
+            margin: '0',
+            border: 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Hidden placeholder for other month dates */}
+        </div>
+      );
+    }
+
     const travelsForDate = travels.filter(travel =>
       date.isBetween(dayjs(travel.onward_date), dayjs(travel.return_date), 'day', '[]')
     );
 
     return (
       <div onClick={() => handleDateClick(date)}>
-        {travelsForDate.map(travel => (
-          <Tooltip
-            key={travel.id}
-            title={
-              <div>
-                <div><strong>{travel.location}</strong></div>
-                <div>{travel.purpose}</div>
-                <div>Accommodation: {travel.accommodation}</div>
-                {travel.remarks && <div>Remarks: {travel.remarks}</div>}
+        {travelsForDate.map(travel => {
+          const status = travel.status || 'going';
+          const statusInfo = statusConfig[status as keyof typeof statusConfig];
+          
+          return (
+            <Tooltip
+              key={travel.id}
+              title={
+                <div>
+                  <div><strong>{travel.location}</strong></div>
+                  <div>{travel.purpose}</div>
+                  <div>Accommodation: {travel.accommodation}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                    <IconWrapper icon={statusInfo.icon} color={statusInfo.color} />
+                    <span>Status: {statusInfo.text}</span>
+                  </div>
+                  {travel.remarks && <div>Remarks: {travel.remarks}</div>}
+                </div>
+              }
+              placement="right"
+            >
+              <div style={{ cursor: 'pointer', marginBottom: 2 }}>
+                <Tag color={travelTypeColors[travel.travel_type]} style={{ width: '100%', margin: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>{travel.location}</span>
+                    <IconWrapper icon={statusInfo.icon} color={statusInfo.color} fontSize="14px" />
+                  </div>
+                </Tag>
               </div>
-            }
-            placement="right"
-          >
-            <div style={{ cursor: 'pointer', marginBottom: 2 }}>
-              <Tag color={travelTypeColors[travel.travel_type]} style={{ width: '100%', margin: 0 }}>
-                {travel.location}
-              </Tag>
-            </div>
-          </Tooltip>
-        ))}
+            </Tooltip>
+          );
+        })}
       </div>
     );
   };
@@ -214,6 +291,7 @@ const EdofcTravelCalendarPage: React.FC = () => {
         borderRadius: '8px',
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)'
       }}>
+        <TravelStatusLegend />
         <DayjsCalendar
           value={selectedDate}
           onSelect={date => setSelectedDate(date)}
@@ -261,6 +339,21 @@ const EdofcTravelCalendarPage: React.FC = () => {
                   <div>
                     <strong>Accommodation:</strong> {travel.accommodation}
                   </div>
+                  {travel.status && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <strong>Status:</strong>
+                      {(() => {
+                        const status = travel.status || 'going';
+                        const statusInfo = statusConfig[status as keyof typeof statusConfig];
+                        return (
+                          <>
+                            <IconWrapper icon={statusInfo.icon} color={statusInfo.color} />
+                            <span>{statusInfo.text}</span>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                   {travel.remarks && (
                     <div>
                       <strong>Remarks:</strong> {travel.remarks}
@@ -345,6 +438,30 @@ const EdofcTravelCalendarPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      
+      <style>
+        {`
+          /* Hide other month placeholders completely */
+          .other-month-placeholder {
+            display: none !important;
+          }
+          /* Make other month dates transparent and non-interactive */
+          .ant-picker-calendar-date:has(.other-month-placeholder) {
+            opacity: 0.1 !important;
+            pointer-events: none !important;
+            background-color: transparent !important;
+          }
+          /* Alternative: hide the date value for other month dates */
+          .ant-picker-calendar-date:has(.other-month-placeholder) .ant-picker-calendar-date-value {
+            opacity: 0.1 !important;
+            color: #ccc !important;
+          }
+          .ant-picker-calendar-date-today .ant-picker-calendar-date-value {
+            color: #1890ff;
+            font-weight: bold;
+          }
+        `}
+      </style>
     </div>
   );
 };

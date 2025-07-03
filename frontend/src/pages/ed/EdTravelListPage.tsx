@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Card, Tag, Space, Typography, message, List,
-  Row, Col, Select, Radio
+  Row, Col, Select, Radio, Button, Empty, Modal, Input
 } from 'antd';
-import { Travel, TravelType } from '../../types/travel';
-import { getTravels } from '../../services/edoffice/travels';
+import { Travel, TravelType, TravelStatus } from '../../types/travel';
+import { getTravels, updateTravelStatus } from '../../services/edoffice/travels';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
@@ -12,6 +12,7 @@ import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
+const { TextArea } = Input;
 
 const travelTypeColors: Record<TravelType, string> = {
   foreign: 'purple',
@@ -103,12 +104,36 @@ const monthOptions = [
 
 const yearOptions = generateYearOptions();
 
+const getStatusColor = (status: TravelStatus) => {
+  switch (status) {
+    case 'going': return 'green';
+    case 'not_going': return 'red';
+    case 'deputing': return 'orange';
+    default: return 'default';
+  }
+};
+
+const getStatusText = (status: TravelStatus) => {
+  switch (status) {
+    case 'going': return 'Going';
+    case 'not_going': return 'Not Going';
+    case 'deputing': return 'Deputing Someone';
+    default: return 'Unknown';
+  }
+};
+
 const EdTravelListPage: React.FC = () => {
   const [travels, setTravels] = useState<Travel[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<TravelType | 'all'>('all');
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'upcoming' | 'past'>('upcoming');
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [selectedTravel, setSelectedTravel] = useState<Travel | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<TravelStatus>('going');
+  const [deputingRemarks, setDeputingRemarks] = useState('');
+  const [statusLoading, setStatusLoading] = useState(false);
 
   const fetchTravels = async () => {
     try {
@@ -147,13 +172,57 @@ const EdTravelListPage: React.FC = () => {
       });
     }
 
+    // Filter by view mode (upcoming/past)
+    const now = dayjs();
+    if (viewMode === 'upcoming') {
+      filtered = filtered.filter(travel => dayjs(travel.return_date).isAfter(now));
+    } else {
+      filtered = filtered.filter(travel => dayjs(travel.return_date).isSameOrBefore(now));
+    }
+
     // Sort by date
     return filtered.sort((a, b) => {
       const dateA = dayjs(a.onward_date);
       const dateB = dayjs(b.onward_date);
       return dateA.valueOf() - dateB.valueOf(); // Always sort chronologically
     });
-  }, [travels, typeFilter, selectedYear, selectedMonth]);
+  }, [travels, typeFilter, selectedYear, selectedMonth, viewMode]);
+
+  const handleStatusUpdate = async () => {
+    if (!selectedTravel) return;
+
+    try {
+      setStatusLoading(true);
+      const statusData = {
+        status: selectedStatus,
+        ...(selectedStatus === 'deputing' && { deputing_remarks: deputingRemarks })
+      };
+
+      const updatedTravel = await updateTravelStatus(selectedTravel.id, statusData);
+      
+      // Update the travel in the list
+      setTravels(prev => prev.map(travel => 
+        travel.id === selectedTravel.id ? updatedTravel : travel
+      ));
+
+      message.success('Travel status updated successfully');
+      setStatusModalVisible(false);
+      setSelectedTravel(null);
+      setSelectedStatus('going');
+      setDeputingRemarks('');
+    } catch (error) {
+      message.error('Failed to update travel status');
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const openStatusModal = (travel: Travel) => {
+    setSelectedTravel(travel);
+    setSelectedStatus(travel.status);
+    setDeputingRemarks(travel.deputing_remarks || '');
+    setStatusModalVisible(true);
+  };
 
   return (
     <div style={{ padding: '24px' }}>
@@ -208,25 +277,118 @@ const EdTravelListPage: React.FC = () => {
                 </Radio.Group>
               </Space>
             </Col>
+            <Col>
+              <Space>
+                <Text strong>View:</Text>
+                <Button.Group>
+                  <Button 
+                    type={viewMode === 'upcoming' ? 'primary' : 'default'}
+                    onClick={() => setViewMode('upcoming')}
+                  >
+                    Upcoming Travels
+                  </Button>
+                  <Button 
+                    type={viewMode === 'past' ? 'primary' : 'default'}
+                    onClick={() => setViewMode('past')}
+                  >
+                    Past Travels
+                  </Button>
+                </Button.Group>
+              </Space>
+            </Col>
+            <Col>
+              <Text type="secondary">
+                Showing {filteredAndSortedTravels.length} {viewMode} travel{filteredAndSortedTravels.length !== 1 ? 's' : ''}
+              </Text>
+            </Col>
           </Row>
         </Space>
       </Card>
 
-      <List
-        dataSource={filteredAndSortedTravels}
-        loading={loading}
-        renderItem={travel => (
-          <List.Item>
-            <TravelCard travel={travel} />
-          </List.Item>
+      {filteredAndSortedTravels.length === 0 ? (
+        <Card>
+          <Empty
+            description={`No ${viewMode} travels found`}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </Card>
+      ) : (
+        <List
+          dataSource={filteredAndSortedTravels}
+          loading={loading}
+          renderItem={travel => (
+            <List.Item>
+              <TravelCard 
+                travel={travel} 
+                onStatusUpdate={openStatusModal}
+              />
+            </List.Item>
+          )}
+        />
+      )}
+
+      {/* Status Update Modal */}
+      <Modal
+        title="Update Travel Status"
+        open={statusModalVisible}
+        onOk={handleStatusUpdate}
+        onCancel={() => {
+          setStatusModalVisible(false);
+          setSelectedTravel(null);
+          setSelectedStatus('going');
+          setDeputingRemarks('');
+        }}
+        confirmLoading={statusLoading}
+        okText="Update Status"
+        cancelText="Cancel"
+      >
+        {selectedTravel && (
+          <Space direction="vertical" style={{ width: '100%' }} size="large">
+            <div>
+              <Text strong>Travel:</Text>
+              <br />
+              <Text>{selectedTravel.location} - {dayjs(selectedTravel.onward_date).format('MMM D')} to {dayjs(selectedTravel.return_date).format('MMM D, YYYY')}</Text>
+            </div>
+            
+            <div>
+              <Text strong>Status:</Text>
+              <br />
+              <Radio.Group 
+                value={selectedStatus} 
+                onChange={e => setSelectedStatus(e.target.value)}
+                style={{ marginTop: 8 }}
+              >
+                <Space direction="vertical">
+                  <Radio value="going">Going</Radio>
+                  <Radio value="not_going">Not Going</Radio>
+                  <Radio value="deputing">Deputing Someone</Radio>
+                </Space>
+              </Radio.Group>
+            </div>
+
+            {selectedStatus === 'deputing' && (
+              <div>
+                <Text strong>Who are you deputing?</Text>
+                <br />
+                <TextArea
+                  value={deputingRemarks}
+                  onChange={e => setDeputingRemarks(e.target.value)}
+                  placeholder="Enter the name of the person you are deputing"
+                  rows={3}
+                  style={{ marginTop: 8 }}
+                />
+              </div>
+            )}
+          </Space>
         )}
-      />
+      </Modal>
     </div>
   );
 };
 
-const TravelCard: React.FC<{ travel: Travel }> = ({ travel }) => {
+const TravelCard: React.FC<{ travel: Travel; onStatusUpdate: (travel: Travel) => void }> = ({ travel, onStatusUpdate }) => {
   const isPast = dayjs(travel.return_date).isBefore(dayjs());
+  
   return (
     <Card
       style={{
@@ -264,6 +426,28 @@ const TravelCard: React.FC<{ travel: Travel }> = ({ travel }) => {
             {travel.remarks && (
               <div>
                 <strong>Remarks:</strong> {travel.remarks}
+              </div>
+            )}
+            <div style={{ marginTop: 12 }}>
+              <Space>
+                <Text strong>Status:</Text>
+                <Tag color={getStatusColor(travel.status)}>
+                  {getStatusText(travel.status)}
+                </Tag>
+                <Button 
+                  size="small" 
+                  type="primary"
+                  onClick={() => onStatusUpdate(travel)}
+                >
+                  Update Status
+                </Button>
+              </Space>
+            </div>
+            {travel.status === 'deputing' && travel.deputing_remarks && (
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">
+                  <strong>Deputing:</strong> {travel.deputing_remarks}
+                </Text>
               </div>
             )}
           </div>

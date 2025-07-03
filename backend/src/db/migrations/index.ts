@@ -34,6 +34,7 @@ const migrations = [
   '058_remove_patent_submission_columns.sql',
   '059_update_patent_status_history.sql',
   '060_update_proposals_table.sql',
+  '060_add_employee_upload_columns.sql',
   '062_create_project_publications_table.sql',
   '063_create_project_events_table.sql',
   '064_create_agreements_table.sql',
@@ -50,7 +51,17 @@ const migrations = [
   '075_revert_purchase_orders_to_original.sql',
   '076_update_services_tables.sql',
   '078_add_service_type_and_billing_dates.sql',
-  '079_create_po_status_history_fixed.sql'
+  '079_create_po_status_history_fixed.sql',
+  '080_create_mmg_procurement_tables.sql',
+  '081_enhance_mmg_procurement.sql',
+  '082_fix_procurement_fields.sql',
+  '083_fix_procurement_bids_table.sql',
+  '084_add_purchase_orders_created_at.sql',
+  '085_add_payment_completion_date.sql',
+  '085_update_acts_course_table.sql',
+  '090_add_travel_status.sql',
+  '091_add_centre_and_pi_to_finance_projects.sql',
+  '092_create_project_monthly_status.sql'
 ];
 
 export async function runMigrations(pool: Pool) {

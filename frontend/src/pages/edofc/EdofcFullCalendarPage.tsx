@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Badge, Modal, Form, Input, DatePicker, TimePicker, Select, Button, List, Popconfirm, Tag, Space, Typography, message, Card, Tooltip } from 'antd';
+import { Calendar, Modal, Form, Input, DatePicker, Select, Button, List, Popconfirm, Tag, Space, Typography, message, Card, Tooltip } from 'antd';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 import weekday from 'dayjs/plugin/weekday';
 import localeData from 'dayjs/plugin/localeData';
-import { PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined, UserSwitchOutlined } from '@ant-design/icons';
 import type { CalendarProps } from 'antd';
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../../services/edoffice/calendarEvents';
 import type { CalendarEvent, EventType, AttendanceStatus } from '../../types/calendarEvent';
@@ -68,18 +68,14 @@ const EdofcFullCalendarPage: React.FC = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
 
   const fetchEvents = async () => {
-    setLoading(true);
     try {
       const data = await getCalendarEvents();
       setEvents(data);
     } catch (error) {
       console.error('Error fetching events:', error);
       message.error('Failed to load events');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -113,12 +109,14 @@ const EdofcFullCalendarPage: React.FC = () => {
   const handleModalOk = async () => {
     try {
       const values = await form.validateFields();
+      // Use local time string (IST) for DB
+      const start = dayjs(values.start_time).format('YYYY-MM-DD HH:mm:ss');
+      const end = dayjs(values.end_time).format('YYYY-MM-DD HH:mm:ss');
       const eventData = {
         ...values,
-        start_time: values.start_time.toISOString(),
-        end_time: values.end_time.toISOString()
+        start_time: start,
+        end_time: end
       };
-
       if (selectedEvent) {
         await updateCalendarEvent(selectedEvent.id, eventData);
         message.success('Event updated successfully');
@@ -126,7 +124,6 @@ const EdofcFullCalendarPage: React.FC = () => {
         await createCalendarEvent(eventData);
         message.success('Event created successfully');
       }
-
       fetchEvents();
       setModalVisible(false);
       setSelectedEvent(null);
@@ -154,39 +151,81 @@ const EdofcFullCalendarPage: React.FC = () => {
   };
 
   const renderEventTypeLegend = () => (
-    <Card size="small" style={{ marginBottom: 16 }}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Space wrap>
-          <Title level={5} style={{ margin: 0 }}>Event Types:</Title>
-          <Space>
-            {Object.entries(eventTypeColors).map(([type, color]) => (
-              <Tag key={type} color={color} style={{ 
-                padding: '4px 8px',
-                borderRadius: '4px',
-                margin: '0 4px',
-                border: 'none'
-              }}>
+    <div style={{ 
+      marginBottom: '16px', 
+      padding: '8px 12px', 
+      backgroundColor: '#fafafa', 
+      borderRadius: '6px',
+      border: '1px solid #d9d9d9'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 'bold', fontSize: '13px', marginRight: '8px' }}>
+          Legend:
+        </span>
+        
+        {/* Event Types */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Event Types:</span>
+          {Object.entries(eventTypeColors).map(([type, color]) => (
+            <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ 
+                width: '10px', 
+                height: '10px', 
+                backgroundColor: color, 
+                borderRadius: '2px',
+                flexShrink: 0
+              }} />
+              <span style={{ fontSize: '12px' }}>
                 {type.charAt(0).toUpperCase() + type.slice(1)}
-              </Tag>
-            ))}
-          </Space>
-        </Space>
-        <Space wrap>
-          <Title level={5} style={{ margin: 0 }}>Attendance Status:</Title>
-          <Space>
-            {Object.entries(attendanceStatusConfig).map(([status, config]) => (
-              <Tag key={status} color={config.color}>
-                <IconWrapper icon={config.icon} />
+              </span>
+            </div>
+          ))}
+        </div>
+        
+        {/* Attendance Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '12px', fontWeight: '500' }}>Status:</span>
+          {Object.entries(attendanceStatusConfig).map(([status, config]) => (
+            <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <IconWrapper icon={config.icon} />
+              <span style={{ fontSize: '12px' }}>
                 {config.label}
-              </Tag>
-            ))}
-          </Space>
-        </Space>
-      </Space>
-    </Card>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 
   const dateCellRender = (date: Dayjs) => {
+    // For month view, only show events for dates that belong to the currently viewed month
+    const currentMonth = selectedDate.month();
+    const currentYear = selectedDate.year();
+    
+    // Check if the date belongs to the current month view
+    const isCurrentMonth = date.month() === currentMonth && date.year() === currentYear;
+    
+    // If it's not the current month, return a hidden placeholder
+    if (!isCurrentMonth) {
+      return (
+        <div 
+          className="other-month-placeholder" 
+          style={{ 
+            display: 'none',
+            height: '0',
+            minHeight: '0',
+            padding: '0',
+            margin: '0',
+            border: 'none',
+            overflow: 'hidden'
+          }}
+        >
+          {/* Hidden placeholder for other month dates */}
+        </div>
+      );
+    }
+    
     const eventsForDate = events.filter(ev =>
       date.isBetween(dayjs(ev.start_time), dayjs(ev.end_time), 'day', '[]')
     );
@@ -211,7 +250,6 @@ const EdofcFullCalendarPage: React.FC = () => {
                   {status && statusConfig && (
                     <div>
                       Status: {statusConfig.label}
-                      {ev.ed_attendance_remarks && <div>Remarks: {ev.ed_attendance_remarks}</div>}
                     </div>
                   )}
                 </div>
@@ -403,12 +441,19 @@ const EdofcFullCalendarPage: React.FC = () => {
                           <Text strong>{event.title}</Text>
                         </Space>
                         {status && statusConfig && (
-                          <Tag color={statusConfig.color} style={{ margin: 0 }}>
-                            <Space size={4}>
-                              <IconWrapper icon={statusConfig.icon} />
-                              {statusConfig.label}
-                            </Space>
-                          </Tag>
+                          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+                            <Tag color={statusConfig.color} style={{ margin: 0 }}>
+                              <Space size={4}>
+                                <IconWrapper icon={statusConfig.icon} />
+                                {statusConfig.label}
+                              </Space>
+                            </Tag>
+                            {event.ed_attendance_remarks && (
+                              <Text type="secondary" style={{ fontStyle: 'italic', fontSize: '12px' }}>
+                                Remarks: {event.ed_attendance_remarks}
+                              </Text>
+                            )}
+                          </Space>
                         )}
                       </Space>
                     }
@@ -423,11 +468,6 @@ const EdofcFullCalendarPage: React.FC = () => {
                         {event.venue && <Text type="secondary">Venue: {event.venue}</Text>}
                         {event.meeting_link && <Text type="secondary">Meeting Link: {event.meeting_link}</Text>}
                         {event.description && <Text type="secondary">{event.description}</Text>}
-                        {status && event.ed_attendance_remarks && (
-                          <Text type="secondary" style={{ fontStyle: 'italic' }}>
-                            Remarks: {event.ed_attendance_remarks}
-                          </Text>
-                        )}
                       </Space>
                     }
                   />
@@ -509,6 +549,30 @@ const EdofcFullCalendarPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+      
+      <style>
+        {`
+          /* Hide other month placeholders completely */
+          .other-month-placeholder {
+            display: none !important;
+          }
+          /* Make other month dates transparent and non-interactive */
+          .ant-picker-calendar-date:has(.other-month-placeholder) {
+            opacity: 0.1 !important;
+            pointer-events: none !important;
+            background-color: transparent !important;
+          }
+          /* Alternative: hide the date value for other month dates */
+          .ant-picker-calendar-date:has(.other-month-placeholder) .ant-picker-calendar-date-value {
+            opacity: 0.1 !important;
+            color: #ccc !important;
+          }
+          .ant-picker-calendar-date-today .ant-picker-calendar-date-value {
+            color: #1890ff;
+            font-weight: bold;
+          }
+        `}
+      </style>
     </div>
   );
 };

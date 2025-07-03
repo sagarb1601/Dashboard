@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   List,
   ListItem,
@@ -40,6 +40,7 @@ import {
   Science as ScienceIcon,
   Lightbulb as LightbulbIcon,
   History as HistoryIcon,
+  AttachMoney as AttachMoneyIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -57,6 +58,20 @@ const Sidebar: React.FC = () => {
   const [openMenus, setOpenMenus] = useState<{ [key: string]: boolean }>({});
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user.role?.toLowerCase();
+
+  // Suppress ResizeObserver errors
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args) => {
+      if (args[0]?.includes?.('ResizeObserver')) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
 
   const handleMenuClick = (item: MenuItem) => {
     if (item.children) {
@@ -98,6 +113,8 @@ const Sidebar: React.FC = () => {
           { text: 'Training', icon: <TrainingIcon />, path: '/hr/training' },
           { text: 'Recruitment', icon: <RecruitmentIcon />, path: '/hr/recruitment' },
           { text: 'Manpower', icon: <ManpowerIcon />, path: '/hr/manpower' },
+          { text: 'Bulk Employee Upload', icon: <AssignmentIcon />, path: '/hr/bulk-upload' },
+          { text: 'Group Management', icon: <GroupWorkIcon />, path: '/hr/group-management' },
         ];
       case 'bd':
         return [
@@ -166,6 +183,11 @@ const Sidebar: React.FC = () => {
             path: '/technical/project-status'
           },
           {
+            text: 'Project Management',
+            icon: <AssignmentIcon />,
+            path: '/technical/project-management'
+          },
+          {
             text: 'PI/COPI',
             icon: <BuildIcon />,
             path: '/technical/pi-copi'
@@ -199,8 +221,8 @@ const Sidebar: React.FC = () => {
         ];
       case 'edofc':
         return [
-          { text: 'Calendar/Events', icon: <CalendarIcon />, path: '/edofc/calendar' },
-          { text: 'Full Calendar (New)', icon: <CalendarIcon />, path: '/edofc/full-calendar' },
+          //{ text: 'Calendar/Events', icon: <CalendarIcon />, path: '/edofc/calendar' },
+          { text: 'Full Calendar', icon: <CalendarIcon />, path: '/edofc/full-calendar' },
           {
             text: 'Tours & Travels',
             icon: <FlightTakeoffIcon />,
@@ -221,11 +243,22 @@ const Sidebar: React.FC = () => {
         ];
       case 'ed':
         return [
+          { text: 'Finance Dashboard', icon: <DashboardIcon />, path: '/ed/finance-dashboard' },
+          { text: 'Admin Dashboard', icon: <BuildIcon />, path: '/ed/admin-dashboard' },
+          { text: 'ACTS Dashboard', icon: <SchoolIcon />, path: '/ed/acts-dashboard' },
+          { text: 'HR Dashboard', icon: <StaffIcon />, path: '/ed/hr-dashboard' },
+          { text: 'MMG Dashboard', icon: <Inventory2Icon />, path: '/ed/mmg-dashboard' },
+          { text: 'Technical Dashboard', icon: <ScienceIcon />, path: '/ed/technical-dashboard' },
+          { text: 'Business Dashboard', icon: <BusinessIcon />, path: '/ed/business-dashboard' },
           { text: 'Calendar', icon: <CalendarIcon />, path: '/ed/calendar' },
           { text: 'Events', icon: <CalendarMonthIcon />, path: '/ed/events' },
           // { text: 'Attendance', icon: <ListAltIcon />, path: '/ed/attendance' },  // Commented out as functionality moved to Events page
           { text: 'Travel List', icon: <FlightTakeoffIcon />, path: '/ed/travel-list' },
           { text: 'Travel Calendar', icon: <FlightLandIcon />, path: '/ed/travel-calendar' }
+        ];
+      case 'mmg':
+        return [
+          { text: 'Procurement', icon: <ReceiptIcon />, path: '/mmg/procurements' },
         ];
       case 'hpc':
         return [

@@ -28,7 +28,7 @@ const getAllTravels: RequestHandler = async (_req, res, next): Promise<void> => 
     try {
         console.log('Fetching all travels...');
         const result = await pool.query(
-            'SELECT * FROM travels ORDER BY onward_date DESC'
+            'SELECT id, travel_type, location, onward_date, return_date, purpose, accommodation, remarks, COALESCE(status, \'going\') as status, remarks as deputing_remarks, created_at, updated_at FROM travels ORDER BY onward_date DESC'
         );
         console.log(`Found ${result.rows.length} travels`);
         res.json(result.rows);
@@ -44,7 +44,7 @@ const getTravelById: RequestHandler<{ id: string }> = async (req, res, next): Pr
     try {
         const { id } = req.params;
         const result = await pool.query(
-            'SELECT * FROM travels WHERE id = $1',
+            'SELECT id, travel_type, location, onward_date, return_date, purpose, accommodation, remarks, COALESCE(status, \'going\') as status, remarks as deputing_remarks, created_at, updated_at FROM travels WHERE id = $1',
             [id]
         );
 
@@ -188,6 +188,45 @@ const deleteTravel: RequestHandler<{ id: string }> = async (req, res, next): Pro
     }
 };
 router.delete('/:id', deleteTravel);
+
+// Update travel status
+const updateTravelStatus: RequestHandler<{ id: string }, {}, { status: string; deputing_remarks?: string }> = async (req, res, next): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { status, deputing_remarks } = req.body;
+
+        // Validate status
+        if (!['going', 'not_going', 'deputing'].includes(status)) {
+            res.status(400).json({ error: 'Invalid status. Must be going, not_going, or deputing' });
+            return;
+        }
+
+        // If status is deputing, remarks are required
+        if (status === 'deputing' && !deputing_remarks) {
+            res.status(400).json({ error: 'Remarks are required when status is deputing' });
+            return;
+        }
+
+        const result = await pool.query(
+            `UPDATE travels 
+            SET status = $1, remarks = $2, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $3
+            RETURNING id, travel_type, location, onward_date, return_date, purpose, accommodation, remarks, status, remarks as deputing_remarks, created_at, updated_at`,
+            [status, deputing_remarks || null, id]
+        );
+
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Travel not found' });
+            return;
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Error in updateTravelStatus:', error);
+        next(error);
+    }
+};
+router.patch('/:id/status', updateTravelStatus);
 
 // Error handling middleware
 router.use((err: any, _req: Request, res: Response, _next: NextFunction): void => {

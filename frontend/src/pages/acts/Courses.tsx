@@ -14,35 +14,48 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  IconButton,
   MenuItem,
   Snackbar,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  IconButton,
+  Tooltip,
+  Typography,
 } from '@mui/material';
-import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 
 interface Course {
   id: number;
   course_name: string;
   batch_name: string;
   batch_id: string;
+  batch_type: string;
   year: number;
+  status: string;
   students_enrolled: number;
   students_placed: number;
   course_fee: number;
 }
 
-const COURSE_OPTIONS = ['DSSD', 'DESD', 'DBA', 'DAC', 'DIOT', 'DHPC'];
+interface CoursesProps {
+  hideAddButton?: boolean;
+}
 
-const Courses: React.FC = () => {
+const COURSE_OPTIONS = ['PG-DUASP', 'PG-DITISS', 'PG-DESD', 'PG-DBDA', 'PG-DAC', 'PG-DIOT'];
+const BATCH_TYPE_OPTIONS = ['February', 'August'];
+const STATUS_OPTIONS = ['ongoing', 'completed'];
+
+const Courses: React.FC<CoursesProps> = ({ hideAddButton = false }) => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [open, setOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [formData, setFormData] = useState({
     course_name: '',
-    batch_name: '',
-    batch_id: '',
+    batch_type: 'February',
     year: new Date().getFullYear(),
+    status: 'ongoing',
     students_enrolled: 0,
     students_placed: 0,
     course_fee: 0,
@@ -59,15 +72,28 @@ const Courses: React.FC = () => {
 
   const fetchCourses = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/acts/courses', {
+      const response = await fetch('/api/acts/courses', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
       });
-      const data = await response.json();
-      setCourses(data);
+      if (response.ok) {
+        const data = await response.json();
+        setCourses(data);
+      } else {
+        setSnackbar({
+          open: true,
+          message: 'Failed to fetch courses',
+          severity: 'error'
+        });
+      }
     } catch (error) {
       console.error('Error fetching courses:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to fetch courses',
+        severity: 'error'
+      });
     }
   };
 
@@ -78,14 +104,22 @@ const Courses: React.FC = () => {
   const handleOpen = (course?: Course) => {
     if (course) {
       setEditingCourse(course);
-      setFormData(course);
+      setFormData({
+        course_name: course.course_name,
+        batch_type: course.batch_type,
+        year: course.year,
+        status: course.status,
+        students_enrolled: course.students_enrolled,
+        students_placed: course.students_placed,
+        course_fee: course.course_fee,
+      });
     } else {
       setEditingCourse(null);
       setFormData({
         course_name: '',
-        batch_name: '',
-        batch_id: '',
+        batch_type: 'February',
         year: new Date().getFullYear(),
+        status: 'ongoing',
         students_enrolled: 0,
         students_placed: 0,
         course_fee: 0,
@@ -101,12 +135,48 @@ const Courses: React.FC = () => {
 
   const handleSubmit = async () => {
     try {
-      const url = editingCourse
-        ? `http://localhost:5000/api/acts/courses/${editingCourse.id}`
-        : 'http://localhost:5000/api/acts/courses';
+      // Frontend validation
+      if (formData.students_enrolled < 0) {
+        setSnackbar({
+          open: true,
+          message: 'Students enrolled cannot be negative',
+          severity: 'error'
+        });
+        return;
+      }
+      if (formData.students_placed < 0) {
+        setSnackbar({
+          open: true,
+          message: 'Students placed cannot be negative',
+          severity: 'error'
+        });
+        return;
+      }
+      if (formData.course_fee < 0) {
+        setSnackbar({
+          open: true,
+          message: 'Course fee cannot be negative',
+          severity: 'error'
+        });
+        return;
+      }
+      if (formData.students_placed > formData.students_enrolled) {
+        setSnackbar({
+          open: true,
+          message: 'Students placed cannot be more than students enrolled',
+          severity: 'error'
+        });
+        return;
+      }
+
+      const url = editingCourse 
+        ? `/api/acts/courses/${editingCourse.id}`
+        : '/api/acts/courses';
+      
+      const method = editingCourse ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
-        method: editingCourse ? 'PUT' : 'POST',
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -114,20 +184,19 @@ const Courses: React.FC = () => {
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
       if (response.ok) {
         setSnackbar({
           open: true,
-          message: editingCourse ? 'Course updated successfully!' : 'Course added successfully!',
+          message: editingCourse ? 'Course updated successfully' : 'Course added successfully',
           severity: 'success'
         });
         handleClose();
         fetchCourses();
       } else {
+        const errorData = await response.json();
         setSnackbar({
           open: true,
-          message: data.error || 'An error occurred while saving the course.',
+          message: errorData.error || 'Failed to save course',
           severity: 'error'
         });
       }
@@ -135,7 +204,7 @@ const Courses: React.FC = () => {
       console.error('Error saving course:', error);
       setSnackbar({
         open: true,
-        message: 'An error occurred while saving the course.',
+        message: 'Failed to save course',
         severity: 'error'
       });
     }
@@ -144,18 +213,33 @@ const Courses: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this course?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/acts/courses/${id}`, {
+        const response = await fetch(`/api/acts/courses/${id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
           },
         });
-
         if (response.ok) {
+          setSnackbar({
+            open: true,
+            message: 'Course deleted successfully',
+            severity: 'success'
+          });
           fetchCourses();
+        } else {
+          setSnackbar({
+            open: true,
+            message: 'Failed to delete course',
+            severity: 'error'
+          });
         }
       } catch (error) {
         console.error('Error deleting course:', error);
+        setSnackbar({
+          open: true,
+          message: 'Failed to delete course',
+          severity: 'error'
+        });
       }
     }
   };
@@ -163,43 +247,68 @@ const Courses: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <h2>Courses Information</h2>
-        <Button variant="contained" color="primary" onClick={() => handleOpen()}>
-          Add New Course
-        </Button>
+        <Typography variant="h4" component="h1">
+          ACTS Course Information
+        </Typography>
+        {!hideAddButton && (
+          <Button variant="contained" color="primary" onClick={() => handleOpen()}>
+            <AddIcon sx={{ mr: 1 }} />
+            Add Course
+          </Button>
+        )}
       </Box>
-
+      
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
             <TableRow>
               <TableCell>Course Name</TableCell>
-              <TableCell>Batch Name</TableCell>
               <TableCell>Batch ID</TableCell>
+              <TableCell>Batch Type</TableCell>
               <TableCell>Year</TableCell>
+              <TableCell>Status</TableCell>
               <TableCell>Students Enrolled</TableCell>
               <TableCell>Students Placed</TableCell>
               <TableCell>Course Fee</TableCell>
-              <TableCell>Actions</TableCell>
+              {!hideAddButton && <TableCell>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
             {courses.map((course) => (
               <TableRow key={course.id}>
                 <TableCell>{course.course_name}</TableCell>
-                <TableCell>{course.batch_name}</TableCell>
                 <TableCell>{course.batch_id}</TableCell>
+                <TableCell>{course.batch_type}</TableCell>
                 <TableCell>{course.year}</TableCell>
+                <TableCell>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: course.status === 'ongoing' ? '#1890ff' : '#52c41a',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {course.status.toUpperCase()}
+                  </Typography>
+                </TableCell>
                 <TableCell>{course.students_enrolled}</TableCell>
                 <TableCell>{course.students_placed}</TableCell>
                 <TableCell>₹{course.course_fee.toLocaleString()}</TableCell>
                 <TableCell>
-                  <IconButton onClick={() => handleOpen(course)} color="primary">
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDelete(course.id)} color="error">
-                    <DeleteIcon />
-                  </IconButton>
+                  {!hideAddButton && (
+                    <>
+                      <Tooltip title="Edit">
+                        <IconButton onClick={() => handleOpen(course)} color="primary">
+                          <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton onClick={() => handleDelete(course.id)} color="error">
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -211,65 +320,92 @@ const Courses: React.FC = () => {
         <DialogTitle>{editingCourse ? 'Edit Course' : 'Add New Course'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
-              select
-              label="Course Name"
-              value={formData.course_name}
-              onChange={(e) => setFormData({ ...formData, course_name: e.target.value })}
-              fullWidth
-            >
-              {COURSE_OPTIONS.map((option) => (
-                <MenuItem key={option} value={option}>
-                  {option}
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              label="Batch Name"
-              value={formData.batch_name}
-              onChange={(e) => setFormData({ ...formData, batch_name: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="Batch ID"
-              value={formData.batch_id}
-              onChange={(e) => setFormData({ ...formData, batch_id: e.target.value })}
-              fullWidth
-            />
+            <FormControl fullWidth>
+              <InputLabel>Course Name</InputLabel>
+              <Select
+                value={formData.course_name}
+                onChange={(e) => setFormData({ ...formData, course_name: e.target.value })}
+                label="Course Name"
+              >
+                {COURSE_OPTIONS.map((course) => (
+                  <MenuItem key={course} value={course}>
+                    {course}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Batch Type</InputLabel>
+              <Select
+                value={formData.batch_type}
+                onChange={(e) => setFormData({ ...formData, batch_type: e.target.value })}
+                label="Batch Type"
+              >
+                {BATCH_TYPE_OPTIONS.map((type) => (
+                  <MenuItem key={type} value={type}>
+                    {type}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <TextField
               label="Year"
               type="number"
               value={formData.year}
               onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
               fullWidth
+              inputProps={{ min: 2020, max: 2030 }}
             />
+
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={formData.status}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                label="Status"
+              >
+                {STATUS_OPTIONS.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {status}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <TextField
               label="Students Enrolled"
               type="number"
               value={formData.students_enrolled}
               onChange={(e) => setFormData({ ...formData, students_enrolled: parseInt(e.target.value) })}
               fullWidth
+              inputProps={{ min: 0 }}
             />
+
             <TextField
               label="Students Placed"
               type="number"
               value={formData.students_placed}
               onChange={(e) => setFormData({ ...formData, students_placed: parseInt(e.target.value) })}
               fullWidth
+              inputProps={{ min: 0 }}
             />
+
             <TextField
-              label="Course Fee"
+              label="Course Fee (₹)"
               type="number"
               value={formData.course_fee}
               onChange={(e) => setFormData({ ...formData, course_fee: parseFloat(e.target.value) })}
               fullWidth
+              inputProps={{ min: 0, step: 0.01 }}
             />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
           <Button onClick={handleSubmit} variant="contained" color="primary">
-            {editingCourse ? 'Update' : 'Add'}
+            {editingCourse ? 'Update' : 'Add'} Course
           </Button>
         </DialogActions>
       </Dialog>

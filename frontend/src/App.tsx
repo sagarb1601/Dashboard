@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -24,6 +24,9 @@ import Services from './pages/hr/services/Services';
 import Training from './pages/hr/Training';
 import Recruitment from './pages/hr/Recruitment';
 import Manpower from './pages/hr/Manpower';
+import EmployeeBulkUpload from './pages/hr/EmployeeBulkUpload';
+import GroupAssignment from './pages/hr/GroupAssignment';
+import GroupManagement from './pages/hr/GroupManagement';
 import ClientsPage from './pages/business/Clients';
 import BusinessEntitiesPage from './pages/business/BusinessEntities';
 import PurchaseOrdersPage from './pages/business/PurchaseOrders';
@@ -34,27 +37,44 @@ import { ConfigProvider } from 'antd';
 import './index.css';
 import BDServices from './pages/business/BDServices';
 import BDProjects from './pages/business/BDProjects';
-// Technical Group imports
-import GroupProjects from './pages/technical/GroupProjects';
-import ProjectStatus from './pages/technical/ProjectStatus';
-import Events from './pages/technical/Events';
-import Publications from './pages/technical/Publications';
-import PiCopi from './pages/technical/PiCopi';
 import Agreements from './pages/business/Agreements';
 import SlaFunds from './pages/business/SlaFunds';
-import EdofcCalendarPage from './pages/edofc/EdofcCalendarPage';
 import EdofcFullCalendarPage from './pages/edofc/EdofcFullCalendarPage';
 import EdofcTravelsPage from './pages/edofc/EdofcTravelsPage';
 import EdofcTravelCalendarPage from './pages/edofc/EdofcTravelCalendarPage';
 import EdofcTalksPage from './pages/edofc/EdofcTalksPage';
+import EdHomePage from './pages/ed/EdHomePage';
 import EdCalendarPage from './pages/ed/EdCalendarPage';
 import EdEventsPage from './pages/ed/EdEventsPage';
-import EdAttendancePage from './pages/ed/EdAttendancePage';
 import EdTravelListPage from './pages/ed/EdTravelListPage';
 import EdTravelCalendarPage from './pages/ed/EdTravelCalendarPage';
+import TravelViewPage from './pages/ed/TravelViewPage';
+import CalendarViewPage from './pages/ed/CalendarViewPage';
+import PurchaseOrderStatus from './pages/business/PurchaseOrderStatus';
+import ProcurementList from './pages/mmg/ProcurementList';
+import ProcurementDetails from './pages/mmg/ProcurementDetails';
+import FinanceDashboard from './pages/ed/FinanceDashboard';
+import AdminDashboard from './pages/ed/AdminDashboard';
+import ACTSDashboard from './pages/acts/ACTSDashboard';
+import HRDashboard from './pages/ed/HRDashboard';
+import MMGDashboard from './pages/ed/MMGDashboard';
+import TechnicalDashboard from './pages/ed/TechnicalDashboard';
+import BusinessDashboard from './pages/business/BusinessDashboard';
+import EdBusinessDashboard from './pages/ed/BusinessDashboard';
+import ProjectStatus from './pages/technical/ProjectStatus';
+import ProjectManagement from './pages/technical/ProjectManagement';
+import PiCopi from './pages/technical/PiCopi';
+import Publications from './pages/technical/Publications';
+import Events from './pages/technical/Events';
 import Patents from './pages/technical/Patents';
 import Proposals from './pages/technical/Proposals';
-import PurchaseOrderStatus from './pages/business/PurchaseOrderStatus';
+import ProjectsDashboard from './pages/ed/ProjectsDashboard';
+import FinanceDashboardNew from './pages/ed/FinanceDashboardNew';
+import ACTSViewPage from './pages/ed/ACTSViewPage';
+import MMGViewPage from './pages/ed/MMGViewPage';
+import AdminViewPage from './pages/ed/AdminViewPage';
+import HRViewPage from './pages/ed/HRViewPage';
+
 
 
 interface ProtectedRouteProps {
@@ -77,8 +97,9 @@ export const getUserHomePath = (role: string): string => {
     case 'acts': return '/acts/courses';
     case 'bd': return '/business/clients';
     case 'tg': return '/technical/project-status';
-    case 'edofc': return '/edofc/calendar';
-    case 'ed': return '/ed/calendar';
+    case 'edofc': return '/edofc/full-calendar';
+    case 'ed': return '/ed/home';
+    case 'mmg': return '/mmg/procurements';
     default: return '/welcome';
   }
 };
@@ -138,6 +159,20 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userRole = user.role?.toLowerCase();
+
+  // Global ResizeObserver error suppression
+  useEffect(() => {
+    const originalError = console.error;
+    console.error = (...args) => {
+      if (args[0]?.includes?.('ResizeObserver')) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+    return () => {
+      console.error = originalError;
+    };
+  }, []);
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -214,7 +249,7 @@ const App: React.FC = () => {
               } />
               <Route path="/mmg" element={
                 <ProtectedRoute requireRole="mmg">
-                  <Dashboard />
+                  <Navigate to="/mmg/procurements" replace />
                 </ProtectedRoute>
               } />
               <Route path="/bd" element={
@@ -254,7 +289,7 @@ const App: React.FC = () => {
               } />
               <Route path="/edofc" element={
                 <ProtectedRoute requireRole="edofc">
-                  <Navigate to="/edofc/calendar" replace />
+                  <Navigate to="/edofc/full-calendar" replace />
                 </ProtectedRoute>
               } />
               <Route path="/vlsi" element={
@@ -305,6 +340,13 @@ const App: React.FC = () => {
                 <ProtectedRoute requireRole="admin">
                   <DashboardLayout>
                     <VehiclesPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/ed/admin-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <AdminDashboard />
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
@@ -361,12 +403,96 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               } />
 
+              {/* HR Bulk Upload route */}
+              <Route path="/hr/bulk-upload" element={
+                <ProtectedRoute requireRole="hr">
+                  <DashboardLayout>
+                    <EmployeeBulkUpload />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* HR Group Assignment route */}
+              <Route path="/hr/group-assignment" element={
+                <ProtectedRoute requireRole="hr">
+                  <DashboardLayout>
+                    <GroupAssignment />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* HR Group Management route */}
+              <Route path="/hr/group-management" element={
+                <ProtectedRoute requireRole="hr">
+                  <DashboardLayout>
+                    <GroupManagement />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
               {/* ACTS routes */}
               <Route path="/acts/courses" element={
                 <ProtectedRoute requireRole="acts">
                   <DashboardLayout>
                     <Courses />
                   </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* ACTS Dashboard route */}
+              <Route path="/ed/acts-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <ACTSDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* HR Dashboard route */}
+              <Route path="/ed/hr-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <HRDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* MMG Dashboard route */}
+              <Route path="/ed/mmg-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <MMGDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* Technical Dashboard route */}
+              <Route path="/ed/technical-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <TechnicalDashboard />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* ED Business Dashboard route */}
+              <Route path="/ed/business-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <EdBusinessDashboard />
+                </ProtectedRoute>
+              } />
+
+              {/* ED Projects Dashboard route */}
+              <Route path="/ed/projects-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <ProjectsDashboard />
+                </ProtectedRoute>
+              } />
+
+              {/* ED Finance Dashboard New route */}
+              <Route path="/ed/finance-dashboard-new" element={
+                <ProtectedRoute requireRole="ed">
+                  <FinanceDashboardNew />
                 </ProtectedRoute>
               } />
 
@@ -463,151 +589,17 @@ const App: React.FC = () => {
                 </ProtectedRoute>
               } />
 
-{/* Technical Group routes */}
-<Route path="/technical/projects" element={
-  <ProtectedRoute requireRole="tg">
-    <DashboardLayout>
-      <GroupProjects />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/technical" element={
-  <ProtectedRoute requireRole="tg">
-    <Navigate to="/technical/projects" replace />
-  </ProtectedRoute>
-} />
-<Route path="/technical/project-status" element={
-  <ProtectedRoute requireRole="tg">
-    <DashboardLayout>
-      <ProjectStatus />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/technical/events" element={
-  <ProtectedRoute requireRole="tg">
-    {/*<DashboardLayout>*/}
-      <Events />
-    {/*</DashboardLayout>*/}
-  </ProtectedRoute>
-} />
-<Route path="/technical/publications" element={
-  <ProtectedRoute requireRole="tg">
-    {/*<DashboardLayout>*/}
-      <Publications />
-    {/*</DashboardLayout>*/}
-  </ProtectedRoute>
-} />
-<Route path="/technical/patents" element={
-  <ProtectedRoute requireRole="tg">
-    <DashboardLayout>
-      <Patents />
-    </DashboardLayout>
-      </ProtectedRoute>
-} />
-<Route path="/technical/proposals" element={
-  <ProtectedRoute requireRole="tg">
-    <DashboardLayout>
-      <Proposals />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/technical/pi-copi" element={
-  <ProtectedRoute requireRole="tg">
-    {/*<DashboardLayout>*/}
-      <PiCopi />
-    {/*</DashboardLayout>*/}
-  </ProtectedRoute>
-} />
-
-{/* HPC routes */}
-<Route path="/hpc" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <Dashboard />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/hpc/projects" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <GroupProjects />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/hpc/project-status" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <ProjectStatus />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/hpc/events" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <Events />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/hpc/publications" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <Publications />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-<Route path="/hpc/pi-copi" element={
-  <ProtectedRoute requireRole="hpc">
-    <DashboardLayout>
-      <PiCopi />
-    </DashboardLayout>
-  </ProtectedRoute>
-} />
-
-              {/* ED Office routes */}
-              <Route path="/edofc/calendar" element={
-                <ProtectedRoute requireRole="edofc">
-                  <DashboardLayout>
-                    <EdofcCalendarPage />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/edofc/full-calendar" element={
-                <ProtectedRoute requireRole="edofc">
-                  <DashboardLayout>
-                    <EdofcFullCalendarPage />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/edofc/travels" element={
-                <ProtectedRoute requireRole="edofc">
-                  <DashboardLayout>
-                    <EdofcTravelsPage />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/edofc/travels/calendar" element={
-                <ProtectedRoute requireRole="edofc">
-                  <DashboardLayout>
-                    <EdofcTravelCalendarPage />
-                  </DashboardLayout>
-                </ProtectedRoute>
-              } />
-
-              <Route path="/edofc/talks" element={
-                <ProtectedRoute requireRole="edofc">
-                  {/*<DashboardLayout>*/}
-                    <EdofcTalksPage />
-                  {/*</DashboardLayout>*/}
-                </ProtectedRoute>
-              } />
-
               {/* ED routes */}
-              <Route path="/ed" element={
+              <Route path="/ed/home" element={
                 <ProtectedRoute requireRole="ed">
-                  <Navigate to="/ed/calendar" replace />
+                  <EdHomePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/ed/finance-dashboard" element={
+                <ProtectedRoute requireRole="ed">
+                  <DashboardLayout>
+                    <FinanceDashboard />
+                  </DashboardLayout>
                 </ProtectedRoute>
               } />
               <Route path="/ed/calendar" element={
@@ -638,11 +630,148 @@ const App: React.FC = () => {
                   </DashboardLayout>
                 </ProtectedRoute>
               } />
-              
-              {/* Redirect all other routes to user's home path */}
-              <Route path="*" element={
-                <Navigate to="/" />
+              <Route path="/ed/travel-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <TravelViewPage />
+                </ProtectedRoute>
               } />
+              <Route path="/ed/calendar-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <CalendarViewPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/ed/acts-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <ACTSViewPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/ed/mmg-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <MMGViewPage />
+                </ProtectedRoute>
+              } />
+
+              {/* EDOFC routes */}
+              {/*<Route path="/edofc/calendar" element={
+                <ProtectedRoute requireRole="edofc">
+                  <DashboardLayout>
+                    <EdofcCalendarPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />*/}
+              <Route path="/edofc/full-calendar" element={
+                <ProtectedRoute requireRole="edofc">
+                  <DashboardLayout>
+                    <EdofcFullCalendarPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/edofc/talks" element={
+                <ProtectedRoute requireRole="edofc">
+                 {/*<DashboardLayout>*/}
+                    <EdofcTalksPage />
+                  {/*</DashboardLayout>*/}
+                </ProtectedRoute>
+              } />
+              <Route path="/edofc/travels" element={
+                <ProtectedRoute requireRole="edofc">
+                  <DashboardLayout>
+                    <EdofcTravelsPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/edofc/travels/calendar" element={
+                <ProtectedRoute requireRole="edofc">
+                  <DashboardLayout>
+                    <EdofcTravelCalendarPage />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* MMG routes */}
+              <Route path="/mmg/procurements" element={
+                <ProtectedRoute requireRole="mmg">
+                  <DashboardLayout>
+                    <ProcurementList />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/mmg/procurements/:id" element={
+                <ProtectedRoute requireRole="mmg">
+                  <DashboardLayout>
+                    <ProcurementDetails />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* Technical routes */}
+              <Route path="/technical/project-status" element={
+                <ProtectedRoute requireRole="tg">
+                  <DashboardLayout>
+                    <ProjectStatus />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/project-management" element={
+                <ProtectedRoute requireRole="tg">
+                  <DashboardLayout>
+                    <ProjectManagement />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/pi-copi" element={
+                <ProtectedRoute requireRole="tg">
+                  {/*<DashboardLayout>*/}
+                    <PiCopi />
+                  {/*</DashboardLayout>*/}
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/publications" element={
+                <ProtectedRoute requireRole="tg">
+                  {/*<DashboardLayout>*/}
+                    <Publications />
+                  {/*</DashboardLayout>*/}
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/events" element={
+                <ProtectedRoute requireRole="tg">
+                  {/*<DashboardLayout>*/}
+                    <Events />
+                  {/*</DashboardLayout>*/}
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/patents" element={
+                <ProtectedRoute requireRole="tg">
+                  <DashboardLayout>
+                    <Patents />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/technical/proposals" element={
+                <ProtectedRoute requireRole="tg">
+                  <DashboardLayout>
+                    <Proposals />
+                  </DashboardLayout>
+                </ProtectedRoute>
+              } />
+
+              {/* ED routes */}
+              <Route path="/ed/admin-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <AdminViewPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/ed/hr-view" element={
+                <ProtectedRoute requireRole="ed">
+                  <HRViewPage />
+                </ProtectedRoute>
+              } />
+
+
+
+
+              {/* Default redirect */}
+              <Route path="*" element={<Navigate to={getUserHomePath(userRole)} replace />} />
             </Routes>
           </Router>
         </AuthProvider>

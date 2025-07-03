@@ -1,0 +1,477 @@
+/* ED Home Page Styles */
+.ed-home-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header Styles */
+.ed-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 1rem 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cdac-logo {
+  height: 50px;
+  width: auto;
+  filter: brightness(0) invert(1);
+}
+
+.header-title {
+  color: white !important;
+  margin: 0 !important;
+  font-weight: 600;
+}
+
+.header-right {
+  color: white;
+}
+
+/* Main Content */
+.ed-main-content {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Section Titles */
+.section-title {
+  color: #2c3e50;
+  margin-bottom: 1.5rem !important;
+  font-weight: 600;
+}
+
+/* Business Cards */
+.business-cards {
+  margin-bottom: 2rem;
+}
+
+.business-card,
+.budget-card {
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.business-card:hover,
+.budget-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+}
+
+.card-gradient {
+  padding: 1.5rem;
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-gradient::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.business-card:hover .card-gradient::before,
+.budget-card:hover .card-gradient::before {
+  opacity: 1;
+}
+
+.card-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  z-index: 1;
+}
+
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.card-info {
+  flex: 1;
+}
+
+.card-info .ant-statistic-title {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.card-info .ant-statistic-content {
+  color: white !important;
+}
+
+/* Weekly Calendar Card */
+.weekly-calendar-card {
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  background: white;
+  height: fit-content;
+}
+
+.weekly-calendar-card .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 1rem 1.5rem;
+}
+
+.weekly-calendar-card .ant-card-body {
+  padding: 1rem;
+}
+
+/* Weekly Grid Calendar Styles */
+.weekly-grid-calendar {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  position: relative;
+}
+
+.calendar-header {
+  padding: 12px 16px;
+  background-color: #fafafa;
+  border-bottom: 1px solid #d9d9d9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calendar-header h4 {
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.calendar-grid {
+  display: flex;
+  height: 400px;
+}
+
+.time-labels {
+  width: 50px;
+  border-right: 1px solid #d9d9d9;
+  background-color: #fafafa;
+}
+
+.time-header {
+  height: 40px;
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.time-label {
+  height: calc(100% / 17);
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #666;
+  font-weight: 500;
+}
+
+.days-container {
+  flex: 1;
+  position: relative;
+}
+
+.days-header {
+  display: flex;
+  height: 40px;
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.day-header {
+  flex: 1;
+  border-right: 1px solid #d9d9d9;
+  background-color: #fafafa;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: #666;
+}
+
+.day-header.today {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  font-weight: bold;
+}
+
+.day-header:last-child {
+  border-right: none;
+}
+
+.events-area {
+  position: relative;
+  height: calc(100% - 40px);
+}
+
+.day-grid-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: #d9d9d9;
+  z-index: 1;
+}
+
+.calendar-event {
+  position: absolute;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: white;
+  font-size: 10px;
+  cursor: pointer;
+  z-index: 2;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.calendar-event:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.event-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-time {
+  font-size: 9px;
+  opacity: 0.9;
+}
+
+/* Footer */
+.ed-footer {
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  padding: 1.5rem 2rem;
+  margin-top: auto;
+}
+
+.footer-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .ed-main-content {
+    padding: 1.5rem;
+  }
+  
+  .header-content {
+    padding: 0 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .ed-header {
+    padding: 1rem;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .header-left {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .cdac-logo {
+    height: 40px;
+  }
+  
+  .ed-main-content {
+    padding: 1rem;
+  }
+  
+  .business-card,
+  .budget-card {
+    margin-bottom: 1rem;
+  }
+  
+  .card-content {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .card-icon {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .calendar-grid {
+    height: 300px;
+  }
+  
+  .time-labels {
+    width: 40px;
+  }
+  
+  .time-label {
+    font-size: 9px;
+  }
+  
+  .day-header {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ed-header {
+    padding: 0.5rem;
+  }
+  
+  .header-title {
+    font-size: 18px !important;
+  }
+  
+  .ed-main-content {
+    padding: 0.5rem;
+  }
+  
+  .card-gradient {
+    padding: 1rem;
+  }
+  
+  .card-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .card-info .ant-statistic-content {
+    font-size: 16px !important;
+  }
+  
+  .calendar-grid {
+    height: 250px;
+  }
+  
+  .time-labels {
+    width: 35px;
+  }
+  
+  .time-label {
+    font-size: 8px;
+  }
+  
+  .day-header {
+    font-size: 9px;
+  }
+  
+  .calendar-event {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+  
+  .event-title {
+    font-size: 9px;
+  }
+  
+  .event-time {
+    font-size: 8px;
+  }
+}
+
+/* Loading Animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.business-card,
+.budget-card,
+.weekly-calendar-card {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Hover Effects */
+.business-card:hover .card-icon,
+.budget-card:hover .card-icon {
+  transform: scale(1.1);
+  transition: transform 0.3s ease;
+}
+
+/* Glassmorphism Effect */
+.card-gradient {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Custom Scrollbar */
+.ed-main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ed-main-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.ed-main-content::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.ed-main-content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+} 

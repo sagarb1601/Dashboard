@@ -22,6 +22,8 @@ dotenv.config();
 
 const port = process.env.PORT || 5000;
 
+console.log('Server: Starting server initialization...');
+
 // Middleware
 app.use(express.json());
 
@@ -126,13 +128,15 @@ const startServer = async () => {
     // Initialize database (run migrations)
     await initializeDatabase();
 
-    // Start server
+    // Start server using the app from app.ts
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
       console.log('Available routes:');
       console.log('- GET /api/edofc/travels');
       console.log('- GET /api/ed/travels');
       console.log('- GET /api/technical/proposals');
+      console.log('- GET /api/mmg/test (MMG test route)');
+      console.log('- GET /api/mmg/procurements (MMG procurements)');
     });
   } catch (error) {
     console.error('Failed to start server:', error);

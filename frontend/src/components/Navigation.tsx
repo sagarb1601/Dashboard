@@ -29,6 +29,12 @@ const items = [
       },
     ],
   },
+  {
+    key: 'mmg',
+    label: <Link to="/mmg/procurements">MMG</Link>,
+    // @ts-ignore - Ant Design icon type issue
+    icon: <TeamOutlined />,
+  },
 ] as MenuProps['items'];
 
 const Navigation: React.FC = () => {

@@ -1,4 +1,5 @@
 export type TravelType = 'foreign' | 'domestic';
+export type TravelStatus = 'going' | 'not_going' | 'deputing';
 
 export interface Travel {
   id: number;
@@ -9,6 +10,8 @@ export interface Travel {
   purpose: string;
   accommodation: string;
   remarks: string;
+  status: TravelStatus;
+  deputing_remarks?: string;
   created_at: string;
   updated_at: string;
 }
@@ -23,4 +26,9 @@ export interface CreateTravelPayload {
   remarks: string;
 }
 
-export interface UpdateTravelPayload extends CreateTravelPayload {} 
+export interface UpdateTravelPayload extends CreateTravelPayload {}
+
+export interface UpdateTravelStatusPayload {
+  status: TravelStatus;
+  deputing_remarks?: string;
+} 

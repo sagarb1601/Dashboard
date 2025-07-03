@@ -22,20 +22,24 @@ router.post('/courses', authenticateToken, async (req: Request, res: Response): 
     try {
         const {
             course_name,
-            batch_name,
-            batch_id,
+            batch_type,
             year,
+            status,
             students_enrolled,
             students_placed,
             course_fee
         } = req.body;
 
+        // Auto-generate batch_id and batch_name based on batch_type and year
+        const batch_id = `${batch_type.toUpperCase().substring(0, 3)}${year}`;
+        const batch_name = batch_id;
+
         const result = await pool.query(
             `INSERT INTO acts_course 
-            (course_name, batch_name, batch_id, year, students_enrolled, students_placed, course_fee)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (course_name, batch_name, batch_id, batch_type, year, status, students_enrolled, students_placed, course_fee)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING *`,
-            [course_name, batch_name, batch_id, year, students_enrolled, students_placed, course_fee]
+            [course_name, batch_name, batch_id, batch_type, year, status, students_enrolled, students_placed, course_fee]
         );
 
         res.status(201).json(result.rows[0]);
@@ -57,21 +61,25 @@ router.put('/courses/:id', authenticateToken, async (req: Request, res: Response
         const { id } = req.params;
         const {
             course_name,
-            batch_name,
-            batch_id,
+            batch_type,
             year,
+            status,
             students_enrolled,
             students_placed,
             course_fee
         } = req.body;
 
+        // Auto-generate batch_id and batch_name based on batch_type and year
+        const batch_id = `${batch_type.toUpperCase().substring(0, 3)}${year}`;
+        const batch_name = batch_id;
+
         const result = await pool.query(
             `UPDATE acts_course 
-            SET course_name = $1, batch_name = $2, batch_id = $3, year = $4, 
-                students_enrolled = $5, students_placed = $6, course_fee = $7
-            WHERE id = $8
+            SET course_name = $1, batch_name = $2, batch_id = $3, batch_type = $4, year = $5, 
+                status = $6, students_enrolled = $7, students_placed = $8, course_fee = $9
+            WHERE id = $10
             RETURNING *`,
-            [course_name, batch_name, batch_id, year, students_enrolled, students_placed, course_fee, id]
+            [course_name, batch_name, batch_id, batch_type, year, status, students_enrolled, students_placed, course_fee, id]
         );
 
         if (result.rows.length === 0) {

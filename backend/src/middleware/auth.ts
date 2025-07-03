@@ -50,6 +50,18 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
                     role: userData.role
                 };
 
+                // Get employee_id by matching username with employee name
+                const employeeResult = await pool.query(
+                    `SELECT employee_id 
+                     FROM hr_employees 
+                     WHERE LOWER(employee_name) = LOWER($1)`,
+                    [userData.username]
+                );
+
+                if (employeeResult.rows.length > 0) {
+                    req.user.employee_id = employeeResult.rows[0].employee_id;
+                }
+
                 // Get group_id by matching username with technical group name
                 const groupResult = await pool.query(
                     `SELECT group_id 

@@ -221,10 +221,7 @@ const EdEventsPage: React.FC = () => {
         const statusConfig = attendanceStatusConfig[status as AttendanceStatusKey];
         
         return (
-          <Tooltip 
-            title={record.ed_attendance_remarks ? `Remarks: ${record.ed_attendance_remarks}` : null}
-            placement="topLeft"
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <Tag color={
               status === 'attending' ? 'success' :
               status === 'not_attending' ? 'error' : 'warning'
@@ -234,7 +231,19 @@ const EdEventsPage: React.FC = () => {
                 {statusText.toUpperCase()}
               </Space>
             </Tag>
-          </Tooltip>
+            {record.ed_attendance_remarks && (
+              <div style={{ 
+                fontSize: '11px', 
+                color: '#666', 
+                fontStyle: 'italic',
+                lineHeight: '1.2',
+                maxWidth: '200px',
+                wordWrap: 'break-word'
+              }}>
+                {record.ed_attendance_remarks}
+              </div>
+            )}
+          </div>
         );
       },
     },
@@ -262,12 +271,8 @@ const EdEventsPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: '12px' }}>
       <Card>
-        <div style={{ marginBottom: '24px' }}>
-          <h2 style={{ margin: 0 }}>ED Events</h2>
-        </div>
-
         {/* Statistics Cards */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24} sm={12} md={6}>
