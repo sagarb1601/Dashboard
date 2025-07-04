@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Form, Input, Button, message, Card, Table, Space, Modal } from "antd";
-import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { EditOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { IconWrapper } from "../../../utils/IconWrapper";
 import { contractors } from "../../../utils/api";
 import { Contractor, contractorSchema } from "../../../types/contractor";
