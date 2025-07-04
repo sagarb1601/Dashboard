@@ -18,11 +18,19 @@ import {
   TableHead,
   TableRow,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import DashboardLayout from '../../components/DashboardLayout';
+import { BASE_URL } from '../../utils/api';
+import { format } from 'date-fns';
+import { Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
 interface Project {
   project_id: number;
@@ -48,6 +56,7 @@ interface GrantEntry {
 interface GrantAllocation {
   field_id: number;
   amount: string;
+  field_name: string;
 }
 
 const GrantReceivedPage: React.FC = () => {
@@ -55,15 +64,23 @@ const GrantReceivedPage: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [budgetFields, setBudgetFields] = useState<BudgetField[]>([]);
   const [grantEntries, setGrantEntries] = useState<GrantEntry[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
   const [formData, setFormData] = useState({
-    received_date: new Date().toISOString().split('T')[0],
+    received_date: format(new Date(), 'yyyy-MM-dd'),
     remarks: '',
-    allocations: [] as GrantAllocation[],
+    allocations: [] as GrantAllocation[]
   });
+
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editDate, setEditDate] = useState<string | null>(null);
+  const [editAllocations, setEditAllocations] = useState<GrantAllocation[]>([]);
+  const [editRemarks, setEditRemarks] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteDate, setDeleteDate] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   const fetchProjects = async () => {
     try {
@@ -82,11 +99,9 @@ const GrantReceivedPage: React.FC = () => {
     }
   };
 
-  const fetchProjectBudgetFields = async () => {
-    if (!selectedProject) return;
-
+  const fetchProjectBudgetFields = async (projectId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/finance/projects/${selectedProject.project_id}/budget-fields-with-grants`, {
+      const response = await fetch(`http://localhost:5000/api/finance/projects/${projectId}/budget-fields-with-grants`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -98,7 +113,8 @@ const GrantReceivedPage: React.FC = () => {
           ...prev,
           allocations: data.map((field: BudgetField) => ({
             field_id: field.field_id,
-            amount: ''
+            amount: '',
+            field_name: field.field_name
           }))
         }));
       }
@@ -108,11 +124,9 @@ const GrantReceivedPage: React.FC = () => {
     }
   };
 
-  const fetchGrantEntries = async () => {
-    if (!selectedProject) return;
-
+  const fetchGrantEntries = async (projectId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/finance/projects/${selectedProject.project_id}/grant-entries`, {
+      const response = await fetch(`http://localhost:5000/api/finance/projects/${projectId}/grant-entries`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -133,8 +147,8 @@ const GrantReceivedPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedProject) {
-      fetchProjectBudgetFields();
-      fetchGrantEntries();
+      fetchProjectBudgetFields(selectedProject.project_id);
+      fetchGrantEntries(selectedProject.project_id);
     } else {
       setBudgetFields([]);
       setGrantEntries([]);
@@ -143,72 +157,90 @@ const GrantReceivedPage: React.FC = () => {
   }, [selectedProject]);
 
   const handleProjectChange = (event: any) => {
-    const project = projects.find(p => p.project_id === event.target.value);
+    const projectId = event.target.value;
+    const project = projects.find(p => p.project_id === projectId);
     setSelectedProject(project || null);
+    if (project) {
+      fetchProjectBudgetFields(project.project_id);
+      fetchGrantEntries(project.project_id);
+    }
   };
 
   const handleAllocationChange = (fieldId: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      allocations: prev.allocations.map(alloc =>
-        alloc.field_id === fieldId ? { ...alloc, amount: value } : alloc
-      )
-    }));
+    setFormData(prev => {
+      const allocations = [...prev.allocations];
+      const index = allocations.findIndex(a => a.field_id === fieldId);
+      
+      if (index >= 0) {
+        allocations[index] = { ...allocations[index], amount: value };
+      } else {
+        allocations.push({ field_id: fieldId, amount: value, field_name: '' });
+      }
+      
+      return { ...prev, allocations };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
 
-    // Validate total allocation matches budget
-    const totalAllocation = formData.allocations.reduce((sum, alloc) => sum + (Number(alloc.amount) || 0), 0);
-    if (totalAllocation === 0) {
-      setError('Please allocate grant amount to at least one budget field');
-      return;
-    }
-
     setLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      const response = await fetch('http://localhost:5000/api/finance/grant-received', {
+      // Validate allocations - allow zero and negative values
+      const validAllocations = formData.allocations.filter(alloc => {
+        const amount = Number(alloc.amount);
+        return !isNaN(amount); // Only check if it's a valid number
+      });
+
+      if (validAllocations.length === 0) {
+        setError('Please enter valid amounts for at least one allocation');
+        return;
+      }
+
+      const requestData = {
+        project_id: selectedProject.project_id,
+        received_date: formData.received_date,
+        remarks: formData.remarks,
+        allocations: validAllocations.map(alloc => ({
+          field_id: alloc.field_id,
+          amount: Number(alloc.amount).toFixed(2)
+        }))
+      };
+
+      const response = await fetch(`${BASE_URL}/finance/grant-received`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          project_id: selectedProject.project_id,
-          received_date: formData.received_date,
-          remarks: formData.remarks,
-          allocations: formData.allocations.filter(alloc => Number(alloc.amount) > 0)
-        }),
+        body: JSON.stringify(requestData)
       });
 
-      if (response.ok) {
-        setSuccess('Grant received entries added successfully');
-        fetchProjectBudgetFields();
-        fetchGrantEntries();
-        // Reset form
-        setFormData({
-          received_date: new Date().toISOString().split('T')[0],
-          remarks: '',
-          allocations: budgetFields.map(field => ({
-            field_id: field.field_id,
-            amount: ''
-          }))
-        });
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to add grant received entries');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to add grant entry');
       }
+
+      setSuccess('Grant entry added successfully');
+      setFormData({
+        received_date: format(new Date(), 'yyyy-MM-dd'),
+        remarks: '',
+        allocations: []
+      });
+      fetchGrantEntries(selectedProject.project_id);
     } catch (error) {
-      console.error('Error saving grant received:', error);
-      setError('Failed to add grant received entries');
+      console.error('Error adding grant:', error);
+      setError(error instanceof Error ? error.message : 'Failed to add grant entry');
     } finally {
       setLoading(false);
     }
   };
 
-  // Group grant entries by date
   const groupedGrantEntries = grantEntries.reduce((acc, entry) => {
     const dateKey = entry.received_date;
     if (!acc[dateKey]) {
@@ -222,12 +254,157 @@ const GrantReceivedPage: React.FC = () => {
     return acc;
   }, {} as Record<string, { date: string; remarks: string; fields: Record<number, number> }>);
 
+  // Open edit modal for a date
+  const handleEditDate = (date: string) => {
+    // Ensure date is in YYYY-MM-DD format
+    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+    setEditDate(formattedDate);
+    // Pre-fill allocations for all fields for this date
+    const entry = groupedGrantEntries[date];
+    setEditRemarks(entry?.remarks || '');
+    setEditAllocations(
+      budgetFields.map(field => ({
+        field_id: field.field_id,
+        field_name: field.field_name,
+        amount: entry?.fields[field.field_id]?.toString() || ''
+      }))
+    );
+    setEditModalOpen(true);
+  };
+
+  const handleEditAllocationChange = (fieldId: number, value: string) => {
+    setEditAllocations(prev =>
+      prev.map(a => a.field_id === fieldId ? { ...a, amount: value } : a)
+    );
+  };
+
+  const handleEditSave = async () => {
+    if (!selectedProject || !editDate) return;
+    setEditLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      // Allow zero and negative values
+      const validAllocations = editAllocations.filter(a => !isNaN(Number(a.amount)));
+      
+      const formattedDate = format(new Date(editDate), 'yyyy-MM-dd');
+      
+      const payload = {
+        project_id: selectedProject.project_id,
+        received_date: formattedDate,
+        grants: validAllocations.map(a => ({
+          field_id: a.field_id,
+          amount: Number(a.amount),
+          remarks: editRemarks
+        }))
+      };
+
+      console.log('Sending bulk edit request:', JSON.stringify(payload, null, 2));
+
+      const response = await fetch(`${BASE_URL}/finance/grant-received/bulk-edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Server error response:', data);
+        throw new Error(data.error || data.details || 'Failed to update grant received');
+      }
+      setSuccess('Grant received updated successfully');
+      setEditModalOpen(false);
+      setEditDate(null);
+      fetchGrantEntries(selectedProject.project_id);
+    } catch (error) {
+      console.error('Error in handleEditSave:', error);
+      setError(error instanceof Error ? error.message : 'Failed to update grant received');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteDate = (date: string) => {
+    // Ensure date is in YYYY-MM-DD format
+    const formattedDate = format(new Date(date), 'yyyy-MM-dd');
+    setDeleteDate(formattedDate);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedProject || !deleteDate) return;
+    setDeleteLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      // The date is already in YYYY-MM-DD format from handleDeleteDate
+      console.log('Grant Delete - Sending date:', deleteDate);
+      
+      // Use the bulk-edit endpoint to delete all entries for this date
+      const response = await fetch(`${BASE_URL}/finance/grant-received/bulk-edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          project_id: selectedProject.project_id,
+          received_date: deleteDate,
+          grants: [] // Empty array means delete all entries for this date
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to delete grant received');
+      }
+
+      setSuccess('Grant received deleted successfully');
+      setDeleteDialogOpen(false);
+      setDeleteDate(null);
+      fetchGrantEntries(selectedProject.project_id);
+    } catch (error) {
+      console.error('Error in handleDeleteConfirm:', error);
+      setError(error instanceof Error ? error.message : 'Failed to delete grant received');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <Box sx={{ p: 3 }}>
         <Stack spacing={3}>
-          {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
-          {success && <Alert severity="success" onClose={() => setSuccess(null)}>{success}</Alert>}
+          {error && (
+            <Alert 
+              severity="error" 
+              onClose={() => setError(null)}
+              sx={{ 
+                position: 'sticky',
+                top: 16,
+                zIndex: 1000,
+                boxShadow: 2
+              }}
+            >
+              {error}
+            </Alert>
+          )}
+          {success && (
+            <Alert 
+              severity="success" 
+              onClose={() => setSuccess(null)}
+              sx={{ 
+                position: 'sticky',
+                top: error ? 80 : 16,
+                zIndex: 1000,
+                boxShadow: 2
+              }}
+            >
+              {success}
+            </Alert>
+          )}
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h5" component="h1">Grant Received</Typography>
@@ -270,7 +447,7 @@ const GrantReceivedPage: React.FC = () => {
                             if (newValue) {
                               setFormData(prev => ({
                                 ...prev,
-                                received_date: newValue.toISOString().split('T')[0]
+                                received_date: format(newValue, 'yyyy-MM-dd')
                               }));
                             }
                           }}
@@ -350,13 +527,17 @@ const GrantReceivedPage: React.FC = () => {
                         {Object.values(groupedGrantEntries)
                           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                           .map((entry) => (
-                            <TableCell key={entry.date} sx={{ fontWeight: 'bold', minWidth: '150px' }}>
-                              {new Date(entry.date).toLocaleDateString()}
+                            <TableCell key={entry.date} sx={{ fontWeight: 'bold', minWidth: '150px', position: 'relative' }}>
+                              {format(new Date(entry.date), 'dd-MM-yyyy')}
                               {entry.remarks && (
                                 <Typography variant="caption" display="block" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                                   {entry.remarks}
                                 </Typography>
                               )}
+                              <Box sx={{ position: 'absolute', top: 2, right: 2, display: 'flex', gap: 1 }}>
+                                <IconButton size="small" onClick={() => handleEditDate(entry.date)}><EditIcon fontSize="small" /></IconButton>
+                                <IconButton size="small" onClick={() => handleDeleteDate(entry.date)}><DeleteIcon fontSize="small" /></IconButton>
+                              </Box>
                             </TableCell>
                           ))}
                         <TableCell sx={{ fontWeight: 'bold', width: '150px' }}>Total Received</TableCell>
@@ -427,8 +608,68 @@ const GrantReceivedPage: React.FC = () => {
           )}
         </Stack>
       </Box>
+
+      <Dialog open={editModalOpen} onClose={() => setEditModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Grant Received for {editDate ? format(new Date(editDate), 'dd-MM-yyyy') : ''}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="Remarks"
+              value={editRemarks}
+              onChange={e => setEditRemarks(e.target.value)}
+              fullWidth
+            />
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Budget Field</TableCell>
+                    <TableCell>Amount</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {editAllocations.map(a => (
+                    <TableRow key={a.field_id}>
+                      <TableCell>{a.field_name}</TableCell>
+                      <TableCell>
+                        <TextField
+                          type="number"
+                          value={a.amount}
+                          onChange={e => handleEditAllocationChange(a.field_id, e.target.value)}
+                          inputProps={{ step: '0.01', min: '0' }}
+                          size="small"
+                          sx={{ width: 150 }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditModalOpen(false)} disabled={editLoading}>Cancel</Button>
+          <Button onClick={handleEditSave} variant="contained" disabled={editLoading}>
+            {editLoading ? <CircularProgress size={20} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Grant Received</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete all grant received entries for {deleteDate ? format(new Date(deleteDate), 'dd-MM-yyyy') : ''}?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleteLoading}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained" disabled={deleteLoading}>
+            {deleteLoading ? <CircularProgress size={20} /> : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </DashboardLayout>
   );
 };
 
-export default GrantReceivedPage; 
+export default GrantReceivedPage;

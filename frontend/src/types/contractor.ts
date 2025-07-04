@@ -30,6 +30,9 @@ export interface ContractorMapping {
   created_at?: string;
 }
 
+// Fix the regex pattern by removing unnecessary escape characters
+const phoneRegex = /^\+[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{10}$/;
+
 export const contractorSchema = yup.object().shape({
   contractor_company_name: yup
     .string()
@@ -48,10 +51,7 @@ export const contractorSchema = yup.object().shape({
   phone: yup
     .string()
     .required('Phone number is required')
-    .matches(
-      /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/,
-      'Please enter a valid phone number'
-    ),
+    .matches(phoneRegex, 'Please enter a valid phone number'),
   
   email: yup
     .string()

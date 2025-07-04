@@ -21,11 +21,13 @@ import {
   MenuItem,
   CircularProgress,
   Alert,
+  InputAdornment,
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -102,11 +104,14 @@ const StaffTab: React.FC = () => {
   const handleOpen = (staffMember?: Staff) => {
     if (staffMember) {
       setEditingStaff(staffMember);
+      const joiningDate = staffMember.joining_date ? parseISO(staffMember.joining_date) : null;
+      const leavingDate = staffMember.date_of_leaving ? parseISO(staffMember.date_of_leaving) : null;
+      
       setFormData({
         name: staffMember.name,
         department_id: staffMember.department_id.toString(),
-        joining_date: parseISO(staffMember.joining_date),
-        date_of_leaving: staffMember.date_of_leaving ? parseISO(staffMember.date_of_leaving) : null,
+        joining_date: joiningDate,
+        date_of_leaving: leavingDate,
         status: staffMember.status,
         gender: staffMember.gender,
       });
@@ -137,11 +142,14 @@ const StaffTab: React.FC = () => {
 
     setLoading(true);
     try {
+      const status: 'ACTIVE' | 'INACTIVE' = formData.date_of_leaving ? 'INACTIVE' : 'ACTIVE';
+      
       const payload = {
         ...formData,
         department_id: parseInt(formData.department_id),
         joining_date: format(formData.joining_date, 'yyyy-MM-dd'),
         date_of_leaving: formData.date_of_leaving ? format(formData.date_of_leaving, 'yyyy-MM-dd') : null,
+        status,
       };
 
       if (editingStaff) {
@@ -160,19 +168,12 @@ const StaffTab: React.FC = () => {
     }
   };
 
-  const handleDelete = async (staffId: number) => {
-    if (window.confirm('Are you sure you want to delete this staff member?')) {
-      setLoading(true);
-      try {
-        await staff.delete(staffId);
-        fetchData();
-      } catch (error) {
-        setError('Failed to delete staff member. Please try again.');
-        console.error('Error deleting staff:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
+  const handleClearLeavingDate = () => {
+    setFormData({
+      ...formData,
+      date_of_leaving: null,
+      status: 'ACTIVE'
+    });
   };
 
   if (loading && !staffList.length) {
@@ -238,22 +239,16 @@ const StaffTab: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  <Tooltip title="Edit">
-                    <IconButton 
-                      onClick={() => handleOpen(staffMember)}
-                      disabled={loading}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete">
-                    <IconButton 
-                      onClick={() => handleDelete(staffMember.staff_id)}
-                      disabled={loading}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Stack direction="row" spacing={1}>
+                    <Tooltip title="Edit">
+                      <IconButton 
+                        onClick={() => handleOpen(staffMember)}
+                        disabled={loading}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))}
@@ -317,9 +312,11 @@ const StaffTab: React.FC = () => {
                 slotProps={{ 
                   textField: { 
                     fullWidth: true,
-                    required: true 
+                    required: true,
+                    variant: "outlined"
                   } 
                 }}
+                format="dd/MM/yyyy"
               />
             </LocalizationProvider>
             <LocalizationProvider dateAdapter={AdapterDateFns}>

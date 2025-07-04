@@ -35,15 +35,15 @@ interface Employee {
   employee_name: string;
   join_date: string;
   designation_id: number;
-  technical_group_id: number;
+  technical_group_id: number | null;
   status: string;
-  gender: string;
-  level: number;
-  centre: string;
+  gender: string | null;
+  level: number | null;
+  centre: string | null;
   designation: string;
   designation_full: string;
-  group_name: string;
-  group_description: string;
+  group_name: string | null;
+  group_description: string | null;
 }
 
 interface Designation {
@@ -62,6 +62,7 @@ interface TechnicalGroup {
 const GENDER_OPTIONS = [
   { value: 'M', label: 'Male' },
   { value: 'F', label: 'Female' },
+  { value: 'T', label: 'Transgender' },
 ];
 
 const CENTRE_OPTIONS = [
@@ -124,20 +125,20 @@ const Employees: React.FC = () => {
     return employeeList.filter(emp => {
       const searchTerm = currentFilters.search.toLowerCase();
       
-      // Search filter - more efficient string comparison
+      // Search filter - more efficient string comparison with null safety
       const searchMatch = !searchTerm || 
-        emp.employee_id.toString().toLowerCase().includes(searchTerm) ||
-        emp.employee_name.toLowerCase().includes(searchTerm);
+        (emp.employee_id?.toString() || '').toLowerCase().includes(searchTerm) ||
+        (emp.employee_name || '').toLowerCase().includes(searchTerm);
 
-      // Type-safe number comparisons
+      // Type-safe number comparisons with null safety
       const designationMatch = !currentFilters.designation || 
         emp.designation_id === Number(currentFilters.designation);
 
       const groupMatch = !currentFilters.group || 
-        emp.technical_group_id === Number(currentFilters.group);
+        (emp.technical_group_id !== null && emp.technical_group_id === Number(currentFilters.group));
 
       const levelMatch = !currentFilters.level || 
-        emp.level === Number(currentFilters.level);
+        (emp.level !== null && emp.level === Number(currentFilters.level));
 
       const genderMatch = !currentFilters.gender || 
         emp.gender === currentFilters.gender;
@@ -353,7 +354,7 @@ const Employees: React.FC = () => {
           designation_id: parseInt(formData.designation_id),
           initial_designation_id: parseInt(formData.initial_designation_id),
           technical_group_id: parseInt(formData.technical_group_id),
-          level: parseInt(formData.level.toString()),
+          level: parseInt(formData.level?.toString() || '1'),
           status: 'active'
         }),
       });
@@ -408,7 +409,7 @@ const Employees: React.FC = () => {
             label="Designation"
           >
             <MenuItem value="">All Designations</MenuItem>
-            {designations.map((d) => (
+            {(designations || []).filter(d => d && d.designation_id).map((d) => (
               <MenuItem key={d.designation_id} value={d.designation_id.toString()}>
                 {d.designation_full}
               </MenuItem>
@@ -424,7 +425,7 @@ const Employees: React.FC = () => {
             label="Group"
           >
             <MenuItem value="">All Groups</MenuItem>
-            {technicalGroups.map((g) => (
+            {(technicalGroups || []).filter(g => g && g.group_id).map((g) => (
               <MenuItem key={g.group_id} value={g.group_id.toString()}>
                 {g.group_name}
               </MenuItem>
@@ -440,7 +441,10 @@ const Employees: React.FC = () => {
             label="Level"
           >
             <MenuItem value="">All Levels</MenuItem>
-            {Array.from(new Set(employees.map(e => e.level)))
+            {(employees || [])
+              .map(e => e.level)
+              .filter((level): level is number => level !== null && level !== undefined)
+              .filter((level, index, arr) => arr.indexOf(level) === index) // Remove duplicates
               .sort((a, b) => a - b)
               .map(level => (
                 <MenuItem key={level} value={level.toString()}>
@@ -701,51 +705,66 @@ const Employees: React.FC = () => {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Tooltip
-                        title={
-                          <Box sx={{ p: 1 }}>
-                            <Typography variant="subtitle2">{employee.group_name}</Typography>
-                            {employee.group_description && (
-                              <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 0.5 }}>
-                                {employee.group_description}
-                              </Typography>
-                            )}
-                          </Box>
-                        }
-                        arrow
-                      >
-                        <Box sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          gap: 0.5
-                        }}>
-                          <Box sx={{
-                            px: 1.5,
-                            py: 0.5,
-                            borderRadius: 1,
-                            backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                            color: theme => theme.palette.primary.main,
-                            fontSize: '0.875rem',
-                            fontWeight: 500,
-                            cursor: 'help'
+                      {employee.group_name ? (
+                        <Tooltip
+                          title={
+                            <Box sx={{ p: 1 }}>
+                              <Typography variant="subtitle2">{employee.group_name}</Typography>
+                              {employee.group_description && (
+                                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.7)', mt: 0.5 }}>
+                                  {employee.group_description}
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                          arrow
+                        >
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center',
+                            gap: 0.5
                           }}>
-                            {employee.group_name}
+                            <Box sx={{
+                              px: 1.5,
+                              py: 0.5,
+                              borderRadius: 1,
+                              backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                              color: theme => theme.palette.primary.main,
+                              fontSize: '0.875rem',
+                              fontWeight: 500,
+                              cursor: 'help'
+                            }}>
+                              {employee.group_name}
+                            </Box>
                           </Box>
+                        </Tooltip>
+                      ) : (
+                        <Box sx={{
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: '#ffebee',
+                          color: '#c62828',
+                          fontSize: '0.875rem',
+                          fontWeight: 500,
+                          fontStyle: 'italic'
+                        }}>
+                          Unassigned
                         </Box>
-                      </Tooltip>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Box sx={{
                         px: 1.5,
                         py: 0.5,
                         borderRadius: 1,
-                        backgroundColor: employee.gender === 'M' ? '#e3f2fd' : '#fce4ec',
-                        color: employee.gender === 'M' ? '#1565c0' : '#c2185b',
+                        backgroundColor: employee.gender === 'M' ? '#e3f2fd' : employee.gender === 'F' ? '#fce4ec' : '#f3e5f5',
+                        color: employee.gender === 'M' ? '#1565c0' : employee.gender === 'F' ? '#c2185b' : '#7b1fa2',
                         width: 'fit-content',
                         fontSize: '0.875rem',
                         fontWeight: 500
                       }}>
-                        {employee.gender === 'M' ? 'Male' : 'Female'}
+                        {employee.gender === 'M' ? 'Male' : employee.gender === 'F' ? 'Female' : employee.gender === 'T' ? 'Transgender' : 'N/A'}
                       </Box>
                     </TableCell>
                     <TableCell align="center">
@@ -760,7 +779,7 @@ const Employees: React.FC = () => {
                         fontWeight: 500,
                         mx: 'auto'
                       }}>
-                        {employee.level}
+                        {employee.level || 'N/A'}
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -774,7 +793,7 @@ const Employees: React.FC = () => {
                         fontSize: '0.875rem',
                         fontWeight: 500
                       }}>
-                        {employee.centre}
+                        {employee.centre || 'N/A'}
                       </Box>
                     </TableCell>
                   <TableCell>
@@ -913,7 +932,7 @@ const Employees: React.FC = () => {
                 label="Initial Designation (at Joining)"
                 disabled={!!editingEmployee}
               >
-                {designations.map((designation) => (
+                {(designations || []).filter(d => d && d.designation_id).map((designation) => (
                   <MenuItem 
                     key={designation.designation_id} 
                     value={designation.designation_id.toString()}
@@ -931,7 +950,7 @@ const Employees: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, designation_id: e.target.value })}
                 label="Current Designation"
               >
-                {designations.map((designation) => (
+                {(designations || []).filter(d => d && d.designation_id).map((designation) => (
                   <MenuItem 
                     key={designation.designation_id} 
                     value={designation.designation_id.toString()}
@@ -949,7 +968,7 @@ const Employees: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, technical_group_id: e.target.value })}
                 label="Technical Group"
               >
-                {technicalGroups.map((group) => (
+                {(technicalGroups || []).filter(g => g && g.group_id).map((group) => (
                   <MenuItem 
                     key={group.group_id} 
                     value={group.group_id.toString()}

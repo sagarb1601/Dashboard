@@ -106,22 +106,46 @@ router.delete('/providers/:id', authenticateToken, async (req: Request, res: Res
   const id = parseInt(req.params.id);
   console.log(`DELETE /providers/${id} - Deleting provider`);
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    // Start transaction
+    await client.query('BEGIN');
+
+    // Check if provider has any mappings
+    const mappingsCheck = await client.query(
+      'SELECT COUNT(*) FROM amc_contracts WHERE amcprovider_id = $1',
+      [id]
+    );
+
+    if (parseInt(mappingsCheck.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ 
+        message: 'Cannot delete provider because it has existing mappings (active or inactive)' 
+      });
+      return;
+    }
+
+    // If no mappings exist, proceed with deletion
+    const result = await client.query(
       'DELETE FROM amc_providers WHERE amcprovider_id = $1 RETURNING *',
       [id]
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ message: 'Provider not found' });
       return;
     }
 
+    await client.query('COMMIT');
     console.log('Provider deleted:', result.rows[0]);
     res.json({ message: 'Provider deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error deleting provider:', err);
     res.status(500).json({ message: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -131,7 +155,11 @@ router.get('/contracts', authenticateToken, async (req: Request, res: Response):
     const result = await pool.query(
       `SELECT c.*, 
               e.equipment_name,
-              p.amcprovider_name
+              p.amcprovider_name,
+              CASE 
+                WHEN c.end_date < CURRENT_DATE THEN 'INACTIVE'
+                ELSE 'ACTIVE'
+              END as status
        FROM amc_contracts c
        JOIN admin_equipments e ON c.equipment_id = e.equipment_id
        JOIN amc_providers p ON c.amcprovider_id = p.amcprovider_id
@@ -146,6 +174,9 @@ router.get('/contracts', authenticateToken, async (req: Request, res: Response):
 
 // Add new AMC contract
 router.post('/contracts', authenticateToken, async (req: Request, res: Response): Promise<void> => {
+  console.log('\n=== POST /contracts - Creating new AMC contract ===');
+  console.log('Request body:', JSON.stringify(req.body, null, 2));
+  
   const {
     equipment_id,
     amcprovider_id,
@@ -155,23 +186,112 @@ router.post('/contracts', authenticateToken, async (req: Request, res: Response)
     remarks
   } = req.body;
 
+  // Validate required fields
+  if (!equipment_id || !amcprovider_id || !start_date || !end_date || !amc_value) {
+    console.error('Missing required fields:', { equipment_id, amcprovider_id, start_date, end_date, amc_value });
+    res.status(400).json({ 
+      message: 'Missing required fields',
+      details: {
+        equipment_id: !equipment_id,
+        amcprovider_id: !amcprovider_id,
+        start_date: !start_date,
+        end_date: !end_date,
+        amc_value: !amc_value
+      }
+    });
+    return;
+  }
+
+  // Validate data types
+  if (isNaN(Number(equipment_id)) || isNaN(Number(amcprovider_id)) || isNaN(Number(amc_value))) {
+    console.error('Invalid data types:', { equipment_id, amcprovider_id, amc_value });
+    res.status(400).json({ 
+      message: 'Invalid data types',
+      details: {
+        equipment_id: typeof equipment_id,
+        amcprovider_id: typeof amcprovider_id,
+        amc_value: typeof amc_value
+      }
+    });
+    return;
+  }
+
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    console.log('Starting transaction...');
+    await client.query('BEGIN');
+
+    // Check for existing active mappings for this equipment
+    console.log('Checking for existing active mappings...');
+    const activeMappingCheck = await client.query(
+      `SELECT COUNT(*) FROM amc_contracts 
+       WHERE equipment_id = $1 
+       AND end_date >= CURRENT_DATE`,
+      [equipment_id]
+    );
+
+    console.log('Active mappings count:', activeMappingCheck.rows[0].count);
+
+    if (parseInt(activeMappingCheck.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      console.log('Found existing active mapping, rolling back...');
+      res.status(400).json({ 
+        message: 'Cannot add new mapping because this equipment already has an active contract' 
+      });
+      return;
+    }
+
+    // If no active mappings exist, proceed with creation
+    console.log('Creating new contract with values:', {
+      equipment_id,
+      amcprovider_id,
+      start_date,
+      end_date,
+      amc_value,
+      remarks
+    });
+
+    const result = await client.query(
       `INSERT INTO amc_contracts 
        (equipment_id, amcprovider_id, start_date, end_date, amc_value, remarks)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [equipment_id, amcprovider_id, start_date, end_date, amc_value, remarks]
     );
+
+    await client.query('COMMIT');
+    console.log('Contract created successfully:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     const pgError = err as PostgresError;
-    console.error(err);
+    console.error('Error creating contract:', {
+      error: err,
+      code: pgError.code,
+      message: pgError.message,
+      detail: (pgError as any).detail,
+      constraint: (pgError as any).constraint
+    });
+    
+    let errorMessage = 'Server error';
+    let errorDetails = pgError.message;
+
     if (pgError.code === '23514') {
-      res.status(400).json({ message: 'Invalid date range or AMC value' });
-    } else {
-      res.status(500).json({ message: 'Server error' });
+      errorMessage = 'Invalid date range or AMC value';
+    } else if (pgError.code === '23503') {
+      errorMessage = 'Invalid equipment or provider ID';
+    } else if (pgError.code === '23505') {
+      errorMessage = 'Duplicate entry';
+    } else if (pgError.code === '22P02') {
+      errorMessage = 'Invalid input syntax';
     }
+
+    res.status(500).json({ 
+      message: errorMessage,
+      details: errorDetails
+    });
+  } finally {
+    client.release();
   }
 });
 
@@ -195,7 +315,11 @@ router.put('/contracts/:id', authenticateToken, async (req: Request, res: Respon
            start_date = $3,
            end_date = $4,
            amc_value = $5,
-           remarks = $6
+           remarks = $6,
+           status = CASE 
+             WHEN $4 < CURRENT_DATE THEN 'INACTIVE'
+             ELSE 'ACTIVE'
+           END
        WHERE amccontract_id = $7
        RETURNING *`,
       [equipment_id, amcprovider_id, start_date, end_date, amc_value, remarks, id]

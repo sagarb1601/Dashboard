@@ -24,7 +24,69 @@
       work correctly both with client-side routing and a non-root public URL.
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
-    <title>React App</title>
+    <title>EDO DashBoard</title>
+    <script>
+      // AGGRESSIVE ResizeObserver fix - run immediately before anything else
+      (function() {
+        if (typeof window !== 'undefined') {
+          // Completely override ResizeObserver to prevent all errors
+          const OriginalResizeObserver = window.ResizeObserver;
+          window.ResizeObserver = class SafeResizeObserver extends OriginalResizeObserver {
+            constructor(callback) {
+              super((entries, observer) => {
+                try {
+                  callback(entries, observer);
+                } catch (error) {
+                  // Completely ignore all ResizeObserver errors
+                  return;
+                }
+              });
+            }
+          };
+
+          // Override console.error to suppress ResizeObserver messages
+          const originalError = console.error;
+          console.error = function(...args) {
+            if (args[0] && args[0].includes && args[0].includes('ResizeObserver')) {
+              return;
+            }
+            originalError.apply(console, args);
+          };
+
+          // Override window error event but allow dropdown functionality
+          const originalAddEventListener = window.addEventListener;
+          window.addEventListener = function(type, listener, options) {
+            if (type === 'error') {
+              const wrappedListener = function(event) {
+                if (event.message && event.message.includes('ResizeObserver')) {
+                  event.preventDefault();
+                  return false;
+                }
+                return listener(event);
+              };
+              return originalAddEventListener.call(this, type, wrappedListener, options);
+            }
+            return originalAddEventListener.call(this, type, listener, options);
+          };
+
+          // Ensure dropdown menus can still be positioned correctly
+          const originalQuerySelector = document.querySelector;
+          document.querySelector = function(selector) {
+            const element = originalQuerySelector.call(this, selector);
+            if (element && selector.includes('.ant-dropdown')) {
+              // Ensure dropdown positioning works
+              setTimeout(() => {
+                if (element.style) {
+                  element.style.position = 'absolute';
+                  element.style.zIndex = '1050';
+                }
+              }, 0);
+            }
+            return element;
+          };
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -191,7 +191,6 @@ const Events = () => {
                   <TableCell>End Date</TableCell>
                   <TableCell>Participants</TableCell>
                   <TableCell>Venue</TableCell>
-                  <TableCell>Created At</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -207,7 +206,6 @@ const Events = () => {
                     <TableCell>{new Date(event.end_date).toLocaleDateString()}</TableCell>
                     <TableCell>{event.participants_count}</TableCell>
                     <TableCell>{event.venue}</TableCell>
-                    <TableCell>{new Date(event.created_at).toLocaleString()}</TableCell>
                     <TableCell>
                       <IconButton onClick={() => handleEdit(event)} color="primary">
                         <EditIcon />
@@ -257,6 +255,8 @@ const Events = () => {
                     <MenuItem value="Workshop">Workshop</MenuItem>
                     <MenuItem value="Conference">Conference</MenuItem>
                     <MenuItem value="Training">Training</MenuItem>
+                    <MenuItem value="Seminar">Seminar</MenuItem>
+                    <MenuItem value="Meeting">Meeting</MenuItem>
                   </Select>
                 </FormControl>
 

@@ -397,4 +397,243 @@ router.get('/employees/:id', authenticateToken, async (req: AuthenticatedRequest
     }
 });
 
+// Bulk upload employees
+router.post('/employees/bulk-upload', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        console.log('=== POST /employees/bulk-upload ===');
+        console.log('User:', req.user);
+        console.log('Request body:', req.body);
+
+        const { employees } = req.body;
+
+        if (!Array.isArray(employees)) {
+            res.status(400).json({ error: 'Employees data must be an array' });
+            return;
+        }
+
+        const results = {
+            success: [] as any[],
+            errors: [] as any[],
+            skipped: [] as any[]
+        };
+
+        for (const employee of employees) {
+            try {
+                const {
+                    employee_id,
+                    employee_name,
+                    join_date,
+                    designation,
+                    initial_designation,
+                    employee_type,
+                    technical_group,
+                    gender,
+                    level
+                } = employee;
+
+                // Validate required fields
+                if (!employee_id || !employee_name || !join_date || !designation || !employee_type || !gender) {
+                    results.errors.push({
+                        employee_id,
+                        error: 'Missing required fields: employee_id, employee_name, join_date, designation, employee_type, gender'
+                    });
+                    continue;
+                }
+
+                // Validate gender
+                const validGenders = ['M', 'F', 'T'];
+                if (!validGenders.includes(gender.toUpperCase())) {
+                    results.errors.push({
+                        employee_id,
+                        error: `Invalid gender: ${gender}. Must be M, F, or T`
+                    });
+                    continue;
+                }
+
+                // Check if employee_id already exists
+                const employeeExists = await pool.query(
+                    'SELECT EXISTS(SELECT 1 FROM hr_employees WHERE employee_id = $1)',
+                    [employee_id]
+                );
+
+                if (employeeExists.rows[0].exists) {
+                    results.skipped.push({
+                        employee_id,
+                        employee_name,
+                        reason: 'Employee ID already exists'
+                    });
+                    continue;
+                }
+
+                // Get designation_id from designation name
+                const designationResult = await pool.query(
+                    'SELECT designation_id FROM hr_designations WHERE designation = $1 OR designation_full = $1',
+                    [designation]
+                );
+
+                if (designationResult.rows.length === 0) {
+                    results.errors.push({
+                        employee_id,
+                        error: `Designation not found: ${designation}`
+                    });
+                    continue;
+                }
+
+                const designation_id = designationResult.rows[0].designation_id;
+
+                // Get initial_designation_id if provided
+                let initial_designation_id = designation_id; // Default to current designation
+                if (initial_designation) {
+                    const initialDesignationResult = await pool.query(
+                        'SELECT designation_id FROM hr_designations WHERE designation = $1 OR designation_full = $1',
+                        [initial_designation]
+                    );
+
+                    if (initialDesignationResult.rows.length > 0) {
+                        initial_designation_id = initialDesignationResult.rows[0].designation_id;
+                    }
+                }
+
+                // Get technical_group_id if provided
+                let technical_group_id = null;
+                if (technical_group) {
+                    const technicalGroupResult = await pool.query(
+                        'SELECT group_id FROM technical_groups WHERE UPPER(group_name) = UPPER($1)',
+                        [technical_group]
+                    );
+
+                    if (technicalGroupResult.rows.length === 0) {
+                        results.errors.push({
+                            employee_id,
+                            error: `Technical group not found: ${technical_group}`
+                        });
+                        continue;
+                    }
+
+                    technical_group_id = technicalGroupResult.rows[0].group_id;
+                }
+
+                // Insert employee
+                const insertResult = await pool.query(
+                    `INSERT INTO hr_employees 
+                    (employee_id, employee_name, join_date, designation_id, initial_designation_id, 
+                     technical_group_id, employee_type, status, gender, level)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    RETURNING *`,
+                    [employee_id, employee_name, join_date, designation_id, initial_designation_id,
+                     technical_group_id, employee_type, 'active', gender.toUpperCase(), level]
+                );
+
+                // Fetch complete employee data
+                const completeEmployee = await pool.query(`
+                    SELECT e.*, 
+                           d.designation, d.designation_full,
+                           t.group_name, t.group_description
+                    FROM hr_employees e
+                    LEFT JOIN hr_designations d ON e.designation_id = d.designation_id
+                    LEFT JOIN technical_groups t ON e.technical_group_id = t.group_id
+                    WHERE e.employee_id = $1
+                `, [employee_id]);
+
+                results.success.push(completeEmployee.rows[0]);
+
+            } catch (error) {
+                console.error('Error processing employee:', employee, error);
+                results.errors.push({
+                    employee_id: employee.employee_id,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        }
+
+        res.json(results);
+    } catch (error) {
+        console.error('=== Error in POST /employees/bulk-upload ===');
+        console.error('Full error:', error);
+        res.status(500).json({ 
+            error: 'Internal server error', 
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
+// Get employees without technical group (for group assignment)
+router.get('/employees/without-group', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        console.log('=== GET /employees/without-group ===');
+        console.log('User:', req.user);
+
+        const result = await pool.query(
+            `SELECT e.*, d.designation, d.designation_full
+             FROM hr_employees e
+             LEFT JOIN hr_designations d ON e.designation_id = d.designation_id
+             WHERE e.technical_group_id IS NULL AND e.status = 'active'
+             ORDER BY e.employee_name`
+        );
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Error getting employees without group:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Assign technical group to employee
+router.put('/employees/:id/assign-group', authenticateToken, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+        console.log('=== PUT /employees/:id/assign-group ===');
+        console.log('User:', req.user);
+        console.log('Request body:', req.body);
+
+        const { id } = req.params;
+        const { technical_group_id } = req.body;
+
+        // Validate technical group exists if provided
+        if (technical_group_id !== null && technical_group_id !== undefined) {
+            const groupExists = await pool.query(
+                'SELECT EXISTS(SELECT 1 FROM technical_groups WHERE group_id = $1)',
+                [technical_group_id]
+            );
+
+            if (!groupExists.rows[0].exists) {
+                res.status(400).json({ error: 'Invalid technical_group_id' });
+                return;
+            }
+        }
+
+        // Update employee
+        const result = await pool.query(
+            `UPDATE hr_employees 
+            SET technical_group_id = $1
+            WHERE employee_id = $2
+            RETURNING *`,
+            [technical_group_id, id]
+        );
+
+        if (result.rows.length === 0) {
+            res.status(404).json({ error: 'Employee not found' });
+            return;
+        }
+
+        // Fetch complete employee data
+        const completeEmployee = await pool.query(`
+            SELECT e.*, 
+                   d.designation, d.designation_full,
+                   t.group_name, t.group_description
+            FROM hr_employees e
+            LEFT JOIN hr_designations d ON e.designation_id = d.designation_id
+            LEFT JOIN technical_groups t ON e.technical_group_id = t.group_id
+            WHERE e.employee_id = $1
+        `, [id]);
+
+        res.json(completeEmployee.rows[0]);
+    } catch (error) {
+        console.error('Error assigning group to employee:', error);
+        res.status(500).json({ 
+            error: 'Internal server error',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 export default router; 

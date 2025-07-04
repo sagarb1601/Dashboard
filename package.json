@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@mui/x-date-pickers": "^8.5.0",
-    "date-fns": "^4.1.0"
+    "antd-dayjs-webpack-plugin": "^1.0.6",
+    "date-fns": "^4.1.0",
+    "dayjs": "^1.11.13"
   }
 }

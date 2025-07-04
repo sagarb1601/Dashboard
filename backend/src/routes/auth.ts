@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import pool from '../db';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 interface DatabaseError extends Error {
     code?: string;
@@ -91,6 +92,18 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
             { expiresIn: '24h' }
         );
 
+        // Get group_id for TG users
+        let group_id = null;
+        if (user.role === 'tg') {
+            const groupResult = await pool.query(
+                'SELECT group_id FROM technical_groups WHERE LOWER(group_name) = LOWER($1)',
+                [user.username]
+            );
+            if (groupResult.rows.length > 0) {
+                group_id = groupResult.rows[0].group_id;
+            }
+        }
+
         // Send response with CORS headers
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -102,7 +115,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
             user: {
                 id: user.id,
                 username: user.username,
-                role: user.role
+                role: user.role,
+                group_id
             }
         });
         console.log('=== Login Request Complete ===');
@@ -181,6 +195,58 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
         });
     } catch (error) {
         console.error('Registration error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get current user data
+router.get('/me', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+        console.log('=== GET /me ===');
+        console.log('Request user:', req.user);
+        console.log('Username from request:', req.user?.username);
+        console.log('User role:', req.user?.role);
+        
+        if (!req.user) {
+            console.log('No user found in request');
+            res.status(401).json({ error: 'Not authenticated' });
+            return;
+        }
+
+        // Get user data
+        console.log('Fetching user data for username:', req.user.username);
+        const userQuery = 'SELECT id, username, role FROM users WHERE username = $1';
+        console.log('User query:', userQuery, 'with params:', [req.user.username]);
+        const userResult = await pool.query(userQuery, [req.user.username]);
+        console.log('User data result:', userResult.rows);
+
+        if (userResult.rows.length === 0) {
+            console.log('No user found in database');
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+
+        // Get group_id for TG users
+        let group_id = null;
+        if (req.user.role === 'tg') {
+            const groupResult = await pool.query(
+                'SELECT group_id FROM technical_groups WHERE LOWER(group_name) = LOWER($1)',
+                [req.user.username]
+            );
+            if (groupResult.rows.length > 0) {
+                group_id = groupResult.rows[0].group_id;
+            }
+        }
+
+        const userData = {
+            ...userResult.rows[0],
+            group_id
+        };
+        console.log('Final user data being sent:', userData);
+
+        res.json(userData);
+    } catch (error) {
+        console.error('Error in GET /me:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

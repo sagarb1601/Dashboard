@@ -99,9 +99,44 @@ const StaffSalaries: React.FC = () => {
     setFormData(initialFormData);
   };
 
+  const validateSalaryEntry = (staffId: number, paymentDate: Date): string | null => {
+    const staffMember = staffList.find(s => s.staff_id === parseInt(staffId.toString()));
+    if (!staffMember) {
+      return 'Staff member not found';
+    }
+
+    // Check if staff is active
+    if (staffMember.status !== 'ACTIVE') {
+      return 'Cannot add salary for inactive staff member';
+    }
+
+    // Check if payment date is after joining date
+    if (staffMember.joining_date && new Date(paymentDate) < new Date(staffMember.joining_date)) {
+      return 'Payment date cannot be before joining date';
+    }
+
+    // Check if payment date is after date of leaving
+    if (staffMember.date_of_leaving && new Date(paymentDate) > new Date(staffMember.date_of_leaving)) {
+      return 'Cannot add salary after staff member\'s last date';
+    }
+
+    return null;
+  };
+
   const handleSubmit = async () => {
     if (!formData.staff_id || !formData.net_salary || !formData.payment_date) {
       setError('Please fill in all required fields');
+      return;
+    }
+
+    // Validate salary entry
+    const validationError = validateSalaryEntry(
+      parseInt(formData.staff_id),
+      formData.payment_date
+    );
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -115,6 +150,17 @@ const StaffSalaries: React.FC = () => {
       };
 
       if (editingSalary) {
+        // For editing, also validate the existing salary entry
+        const validationError = validateSalaryEntry(
+          editingSalary.staff_id,
+          formData.payment_date
+        );
+
+        if (validationError) {
+          setError(validationError);
+          return;
+        }
+
         await salaries.update(editingSalary.salary_id, payload);
       } else {
         await salaries.create(payload);
@@ -239,11 +285,13 @@ const StaffSalaries: React.FC = () => {
               required
               disabled={!!editingSalary}
             >
-              {staffList.map((staffMember) => (
-                <MenuItem key={staffMember.staff_id} value={staffMember.staff_id}>
-                  {staffMember.name}
-                </MenuItem>
-              ))}
+              {staffList
+                .filter(staffMember => staffMember.status === 'ACTIVE')
+                .map((staffMember) => (
+                  <MenuItem key={staffMember.staff_id} value={staffMember.staff_id}>
+                    {staffMember.name}
+                  </MenuItem>
+                ))}
             </TextField>
             <TextField
               fullWidth

@@ -273,11 +273,9 @@ const MappingTab: React.FC = () => {
       setSubmitting(true);
 
       if (editingMapping) {
-        // Update existing mapping
         await mappings.update(editingMapping.contract_id, formattedValues);
         showAlert("Department mapping updated successfully", "success");
       } else {
-        // Create new mapping
         await mappings.create(formattedValues);
         showAlert("Department mapping added successfully", "success");
       }

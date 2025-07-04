@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Form, Button, Select, Table, message, InputNumber, Modal } from 'antd';
 import api from '../../utils/api';
 import dayjs from 'dayjs';
@@ -80,44 +80,72 @@ const Recruitment: React.FC = () => {
     }
   };
 
+  // Add a function to group recruitments by month and year
+  const groupedRecruitments = useMemo(() => {
+    const groups: { [key: string]: { [mode: string]: number } } = {};
+    
+    recruitments.forEach(record => {
+      const key = `${record.year}-${record.month}`;
+      if (!groups[key]) {
+        groups[key] = {};
+      }
+      groups[key][record.recruitment_mode] = record.recruited_count;
+    });
+
+    return Object.entries(groups).map(([key, modes]) => {
+      const [year, month] = key.split('-').map(Number);
+      return {
+        key,
+        year,
+        month,
+        monthName: months.find(m => m.value === month)?.label,
+        ...modes,
+        total: Object.values(modes).reduce((sum, count) => sum + count, 0)
+      };
+    }).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+  }, [recruitments]);
+
   const columns = [
     { 
-      title: 'Mode', 
-      dataIndex: 'recruitment_mode', 
-      key: 'recruitment_mode',
-      render: (mode: string) => mode.replace(/_/g, ' ')
-    },
-    { 
       title: 'Month', 
-      dataIndex: 'month', 
+      dataIndex: 'monthName',
       key: 'month',
-      render: (month: number) => months.find(m => m.value === month)?.label
+      render: (text: string, record: any) => `${text} ${record.year}`
     },
-    { title: 'Year', dataIndex: 'year', key: 'year' },
-    { title: 'Recruited Count', dataIndex: 'recruited_count', key: 'recruited_count' },
+    ...recruitmentModes.map(mode => ({
+      title: mode.replace(/_/g, ' '),
+      dataIndex: mode,
+      key: mode,
+      render: (count: number) => count || 0
+    })),
+    {
+      title: 'Total',
+      dataIndex: 'total',
+      key: 'total',
+      render: (total: number) => <strong>{total}</strong>
+    },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_: unknown, record: RecruitmentRecord) => (
-        <>
-          <Button 
-            type="link" 
-            onClick={() => {
-              setEditingRecruitment(record);
-              form.setFieldsValue(record);
-              setOpen(true);
-            }}
-          >
-            Edit
-          </Button>
-          <Button 
-            type="link" 
-            danger 
-            onClick={() => handleDelete(record.id)}
-          >
-            Delete
-          </Button>
-        </>
+      render: (_: unknown, record: any) => (
+        <Button 
+          type="link" 
+          onClick={() => {
+            // Find all recruitments for this month/year
+            const monthRecruitments = recruitments.filter(
+              r => r.year === record.year && r.month === record.month
+            );
+            // Open modal with all recruitments for editing
+            setEditingRecruitment(monthRecruitments[0]);
+            form.setFieldsValue(monthRecruitments[0]);
+            setOpen(true);
+          }}
+        >
+          Edit
+        </Button>
       )
     }
   ];
@@ -128,7 +156,7 @@ const Recruitment: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <h2>Recruitment Records</h2>
+        <h2>Recruitment Summary</h2>
         <Button 
           type="primary" 
           onClick={() => {
@@ -143,9 +171,9 @@ const Recruitment: React.FC = () => {
 
       <Table 
         columns={columns} 
-        dataSource={recruitments}
-        rowKey="id"
-        pagination={{ pageSize: 10 }}
+        dataSource={groupedRecruitments}
+        rowKey="key"
+        pagination={{ pageSize: 12 }}
       />
 
       <Modal

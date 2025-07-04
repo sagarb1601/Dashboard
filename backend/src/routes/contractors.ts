@@ -1,8 +1,8 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 const router = express.Router();
 
 // Get all contractors
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
     try {
         // TODO: Implement get all contractors logic
         res.json({ message: 'Get all contractors endpoint' });
@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get single contractor
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response) => {
     try {
         // TODO: Implement get single contractor logic
         res.json({ message: 'Get single contractor endpoint' });
@@ -22,7 +22,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create contractor
-router.post('/', async (req, res) => {
+router.post('/', async (req: Request, res: Response) => {
     try {
         // TODO: Implement create contractor logic
         res.json({ message: 'Create contractor endpoint' });
@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
 });
 
 // Update contractor
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: Request, res: Response) => {
     try {
         // TODO: Implement update contractor logic
         res.json({ message: 'Update contractor endpoint' });
@@ -42,7 +42,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete contractor
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: Request, res: Response) => {
     try {
         // TODO: Implement delete contractor logic
         res.json({ message: 'Delete contractor endpoint' });

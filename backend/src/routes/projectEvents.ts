@@ -72,12 +72,25 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
       venue
     } = req.body;
 
+    // Get the group_id from the selected project
+    const projectResult = await pool.query(
+      'SELECT group_id FROM finance_projects WHERE project_id = $1',
+      [project_id]
+    );
+
+    if (projectResult.rows.length === 0) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const group_id = projectResult.rows[0].group_id;
+
     const result = await pool.query(
       `INSERT INTO project_events 
-       (project_id, event_type, title, start_date, end_date, participants_count, venue)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (project_id, group_id, event_type, title, start_date, end_date, participants_count, venue)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [project_id, event_type, title, start_date, end_date, participants_count, venue]
+      [project_id, group_id, event_type, title, start_date, end_date, participants_count, venue]
     );
 
     res.status(201).json(result.rows[0]);
@@ -92,6 +105,7 @@ router.put('/:eventId', async (req: Request, res: Response): Promise<void> => {
   try {
     const { eventId } = req.params;
     const {
+      project_id,
       event_type,
       title,
       start_date,
@@ -100,17 +114,32 @@ router.put('/:eventId', async (req: Request, res: Response): Promise<void> => {
       venue
     } = req.body;
 
+    // Get the group_id from the selected project
+    const projectResult = await pool.query(
+      'SELECT group_id FROM finance_projects WHERE project_id = $1',
+      [project_id]
+    );
+
+    if (projectResult.rows.length === 0) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+
+    const group_id = projectResult.rows[0].group_id;
+
     const result = await pool.query(
       `UPDATE project_events 
-       SET event_type = $1,
-           title = $2,
-           start_date = $3,
-           end_date = $4,
-           participants_count = $5,
-           venue = $6
-       WHERE event_id = $7
+       SET project_id = $1,
+           group_id = $2,
+           event_type = $3,
+           title = $4,
+           start_date = $5,
+           end_date = $6,
+           participants_count = $7,
+           venue = $8
+       WHERE event_id = $9
        RETURNING *`,
-      [event_type, title, start_date, end_date, participants_count, venue, eventId]
+      [project_id, group_id, event_type, title, start_date, end_date, participants_count, venue, eventId]
     );
 
     if (result.rows.length === 0) {

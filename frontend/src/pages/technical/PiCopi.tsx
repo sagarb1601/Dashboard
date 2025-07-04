@@ -16,8 +16,8 @@ import {
   Stack,
   CircularProgress,
   Chip,
-  OutlinedInput,
-  SelectChangeEvent
+  Autocomplete,
+  TextField
 } from '@mui/material';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../utils/api';
@@ -166,11 +166,6 @@ const PiCopi = () => {
     }
   };
 
-  const handleCopiChange = (event: SelectChangeEvent<number[]>) => {
-    const value = event.target.value as number[];
-    setSelectedCoPIs(value);
-  };
-
   return (
     <DashboardLayout>
       <Box p={3}>
@@ -255,49 +250,53 @@ const PiCopi = () => {
                 </FormControl>
 
                 <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel>Principal Investigator (PI)</InputLabel>
-                  <Select
-                    value={selectedPI}
-                    label="Principal Investigator (PI)"
-                    onChange={(e) => setSelectedPI(e.target.value as number)}
-                  >
-                    {employees.map((employee) => (
-                      <MenuItem key={employee.employee_id} value={employee.employee_id}>
-                        {employee.employee_name}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  <Autocomplete
+                    value={employees.find(emp => emp.employee_id === selectedPI) || null}
+                    onChange={(event, newValue) => {
+                      setSelectedPI(newValue ? newValue.employee_id : '');
+                    }}
+                    options={employees}
+                    getOptionLabel={(option) => option.employee_name}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        label="Principal Investigator (PI)"
+                        placeholder="Search for PI..."
+                      />
+                    )}
+                    clearOnBlur={false}
+                    clearOnEscape={false}
+                  />
                 </FormControl>
 
-                <FormControl fullWidth>
-                  <InputLabel>Co-Principal Investigators (Co-PIs)</InputLabel>
-                  <Select
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <Autocomplete
                     multiple
-                    value={selectedCoPIs}
-                    onChange={handleCopiChange}
-                    input={<OutlinedInput label="Co-Principal Investigators (Co-PIs)" />}
-                    renderValue={(selected) => (
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {selected.map((value) => (
-                          <Chip 
-                            key={value} 
-                            label={employees.find(emp => emp.employee_id === value)?.employee_name} 
-                            size="small" 
-                          />
-                        ))}
-                      </Box>
+                    value={employees.filter(emp => selectedCoPIs.includes(emp.employee_id))}
+                    onChange={(event, newValue) => {
+                      setSelectedCoPIs(newValue.map(emp => emp.employee_id));
+                    }}
+                    options={employees}
+                    getOptionLabel={(option) => option.employee_name}
+                    renderInput={(params) => (
+                      <TextField 
+                        {...params} 
+                        label="Co-Principal Investigators (Co-PIs)"
+                        placeholder="Search for Co-PIs..."
+                      />
                     )}
-                  >
-                    {employees.map((employee) => (
-                      <MenuItem 
-                        key={employee.employee_id} 
-                        value={employee.employee_id}
-                        disabled={employee.employee_id === selectedPI}
-                      >
-                        {employee.employee_name}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                    renderTags={(value, getTagProps) =>
+                      value.map((option, index) => (
+                        <Chip
+                          label={option.employee_name}
+                          {...getTagProps({ index })}
+                          key={option.employee_id}
+                        />
+                      ))
+                    }
+                    clearOnBlur={false}
+                    clearOnEscape={false}
+                  />
                 </FormControl>
               </Box>
             </DialogContent>

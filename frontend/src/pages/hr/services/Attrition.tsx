@@ -306,7 +306,11 @@ const Attrition: React.FC = () => {
             label="Reason for Leaving"
             rules={[{ required: true, message: 'Please select a reason' }]}
           >
-            <Select>
+            <Select
+              style={{ width: '100%' }}
+              dropdownStyle={{ zIndex: 1500 }}
+              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+            >
               {ATTRITION_REASONS.map(reason => (
                 <Select.Option key={reason} value={reason}>
                   {formatReason(reason)}

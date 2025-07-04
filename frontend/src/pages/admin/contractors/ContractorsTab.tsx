@@ -10,6 +10,7 @@ import Alert from "@mui/material/Alert";
 
 const WrappedEditIcon = IconWrapper(EditOutlined);
 const WrappedPlusIcon = IconWrapper(PlusOutlined);
+const WrappedDeleteIcon = IconWrapper(DeleteOutlined);
 
 const ContractorsTab: React.FC = () => {
   const [form] = Form.useForm();
@@ -38,11 +39,15 @@ const ContractorsTab: React.FC = () => {
     setAlert({ open: true, severity, message });
   };
 
-  const fetchContractors = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const { data } = await contractors.getAll();
-      setContractorsList(data);
+      const [contractorsRes, mappingsRes] = await Promise.all([
+        contractors.getAll(),
+        mappings.getAll()
+      ]);
+      setContractorsList(contractorsRes.data);
+      checkContractorMappings(mappingsRes.data);
     } catch (error) {
       showAlert("Failed to load contractors", "error");
       console.error(error);
@@ -52,7 +57,7 @@ const ContractorsTab: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchContractors();
+    fetchData();
   }, []);
 
   const showModal = (contractor?: Contractor) => {
@@ -89,7 +94,7 @@ const ContractorsTab: React.FC = () => {
       setIsModalVisible(false);
       form.resetFields();
       setEditingContractor(null);
-      fetchContractors(); // Refresh the table
+      fetchData(); // Refresh the table
     } catch (error: any) {
       if (error.name === "ValidationError") {
         console.error(error.errors[0]);
@@ -172,9 +177,14 @@ const ContractorsTab: React.FC = () => {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => showModal(record)}>
-            <WrappedEditIcon /> Edit
+        <Space size="small" style={{ whiteSpace: 'nowrap' }}>
+          <Button 
+            type="link" 
+            onClick={() => showModal(record)}
+            icon={<WrappedEditIcon />}
+            style={{ padding: '4px 8px' }}
+          >
+            Edit
           </Button>
           <Button
             type="link"
@@ -204,19 +214,18 @@ const ContractorsTab: React.FC = () => {
         </Button>
       </div>
 
-      <Card className="shadow">
-        <Table
-          columns={columns}
-          dataSource={contractorsList}
-          rowKey="contractor_id"
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} contractors`,
-          }}
-        />
-      </Card>
+      <Table
+        columns={columns}
+        dataSource={contractorsList}
+        rowKey="contractor_id"
+        loading={loading}
+        scroll={{ x: 'max-content' }}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: true,
+          showTotal: (total) => `Total ${total} contractors`
+        }}
+      />
 
       <Modal
         title={editingContractor ? "Edit Contractor" : "Add New Contractor"}
@@ -236,7 +245,10 @@ const ContractorsTab: React.FC = () => {
             label="Company Name"
             rules={[{ required: true, message: "Please enter company name" }]}
           >
-            <Input placeholder="Enter company name" />
+            <Input 
+              placeholder="Enter company name"
+              maxLength={100}
+            />
           </Form.Item>
 
           <Form.Item
@@ -244,7 +256,10 @@ const ContractorsTab: React.FC = () => {
             label="Contact Person"
             rules={[{ required: true, message: "Please enter contact person" }]}
           >
-            <Input placeholder="Enter contact person name" />
+            <Input 
+              placeholder="Enter contact person name"
+              maxLength={100}
+            />
           </Form.Item>
 
           <Form.Item
@@ -258,8 +273,12 @@ const ContractorsTab: React.FC = () => {
                 message: "Please enter a valid phone number",
               },
             ]}
+            validateTrigger={['onChange', 'onBlur']}
           >
-            <Input placeholder="Enter phone number" />
+            <Input 
+              placeholder="Enter phone number" 
+              maxLength={15}
+            />
           </Form.Item>
 
           <Form.Item
@@ -267,7 +286,11 @@ const ContractorsTab: React.FC = () => {
             label="Email"
             rules={[{ type: "email", message: "Please enter a valid email" }]}
           >
-            <Input placeholder="Enter email address" />
+            <Input 
+              type="email" 
+              placeholder="Enter email address"
+              maxLength={100}
+            />
           </Form.Item>
 
           <Form.Item name="address" label="Address">

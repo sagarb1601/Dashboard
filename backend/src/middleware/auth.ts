@@ -1,11 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import pool from '../db';
 
-interface AuthRequest extends Request {
+export interface AuthRequest extends Request {
     user?: {
-        userId: number;
+        id: number;
         username: string;
-        role: string;
+        role?: string;
+        group_id?: number | null;
+        employee_id?: number;
+        [key: string]: any;
     };
 }
 
@@ -19,19 +23,64 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
             return;
         }
 
-        jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err: any, decoded: any) => {
+        jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', async (err: any, decoded: any) => {
             if (err) {
                 res.status(403).json({ error: 'Invalid or expired token' });
                 return;
             }
 
-            req.user = {
-                userId: decoded.userId,
-                username: decoded.username,
-                role: decoded.role
-            };
-            
-            next();
+            try {
+                // Get user details
+                const userResult = await pool.query(
+                    `SELECT id, username, role
+                     FROM users
+                     WHERE id = $1`,
+                    [decoded.userId]
+                );
+
+                if (userResult.rows.length === 0) {
+                    res.status(401).json({ error: 'User not found' });
+                    return;
+                }
+
+                const userData = userResult.rows[0];
+                req.user = {
+                    id: userData.id,
+                    username: userData.username,
+                    role: userData.role
+                };
+
+                // Get employee_id by matching username with employee name
+                const employeeResult = await pool.query(
+                    `SELECT employee_id 
+                     FROM hr_employees 
+                     WHERE LOWER(employee_name) = LOWER($1)`,
+                    [userData.username]
+                );
+
+                if (employeeResult.rows.length > 0) {
+                    req.user.employee_id = employeeResult.rows[0].employee_id;
+                }
+
+                // Get group_id by matching username with technical group name
+                const groupResult = await pool.query(
+                    `SELECT group_id 
+                     FROM technical_groups 
+                     WHERE LOWER(group_name) = LOWER($1)`,
+                    [userData.username]
+                );
+
+                if (groupResult.rows.length > 0) {
+                    req.user.group_id = groupResult.rows[0].group_id;
+                } else {
+                    req.user.group_id = null;
+                }
+
+                next();
+            } catch (error) {
+                console.error('Error fetching user details:', error);
+                res.status(500).json({ error: 'Internal server error' });
+            }
         });
     } catch (error) {
         console.error('Authentication error:', error);

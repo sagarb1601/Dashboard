@@ -1,0 +1,254 @@
+/* Calendar container styles */
+.calendar-container {
+  margin-bottom: 24px;
+}
+
+/* Remove scrollbars and allow content to expand */
+.calendar-container .ant-picker-calendar-date-content {
+  height: auto !important;
+  overflow: visible !important;
+  min-height: 80px;
+}
+
+/* Style calendar cells */
+.calendar-container .ant-picker-cell {
+  padding: 4px;
+}
+
+/* Style event tags */
+.calendar-container .ant-tag {
+  margin: 2px 0;
+  width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Style tooltips */
+.calendar-container .ant-tooltip-inner {
+  max-width: 300px;
+  padding: 8px 12px;
+}
+
+.calendar-container .ant-tooltip-inner-content {
+  font-size: 13px;
+}
+
+/* Style event details in tooltip */
+.calendar-container .ant-tooltip-inner strong {
+  color: #1890ff;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.calendar-container .ant-tooltip-inner div {
+  margin-bottom: 4px;
+}
+
+/* Style the "X events" tag */
+.calendar-container .ant-tag-blue {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+  color: #1890ff;
+}
+
+/* Calendar header styles */
+.calendar-container .ant-picker-calendar-header {
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calendar-container .ant-picker-calendar-header .ant-select {
+  min-width: 100px;
+}
+
+.calendar-container .ant-picker-calendar-header .ant-space {
+  gap: 8px !important;
+}
+
+.calendar-container .ant-picker-calendar-header .ant-btn {
+  padding: 4px 8px;
+}
+
+/* Style year and month selectors */
+.calendar-container .ant-select-selector {
+  padding: 4px 8px !important;
+}
+
+.calendar-container .ant-select-selection-item {
+  font-weight: 500;
+}
+
+/* Style navigation buttons */
+.calendar-container .ant-picker-calendar-header .ant-btn {
+  border-radius: 4px;
+  height: 32px;
+  padding: 0 12px;
+}
+
+.calendar-container .ant-picker-calendar-header .ant-btn:hover {
+  color: #1890ff;
+  border-color: #1890ff;
+}
+
+/* Style the Today button */
+.calendar-container .ant-picker-calendar-header .ant-btn:not(:last-child) {
+  margin-right: 8px;
+}
+
+/* Week View Styles */
+.week-view {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.week-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.week-day-header {
+  padding: 12px;
+  text-align: center;
+  border-right: 1px solid #f0f0f0;
+}
+
+.week-day-header:last-child {
+  border-right: none;
+}
+
+.week-day-name {
+  font-weight: 500;
+  color: #1890ff;
+  margin-bottom: 4px;
+}
+
+.week-day-date {
+  color: #666;
+  font-size: 12px;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  min-height: 600px;
+}
+
+.week-day-cell {
+  min-height: 100px;
+  padding: 8px;
+  border-right: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.week-day-cell:last-child {
+  border-right: none;
+}
+
+.week-event {
+  padding: 4px 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.week-event:hover {
+  opacity: 0.8;
+}
+
+.event-time {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.event-title {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Day View Styles */
+.day-view {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.day-timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.hour-row {
+  display: flex;
+  min-height: 60px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.hour-row:last-child {
+  border-bottom: none;
+}
+
+.hour-label {
+  width: 60px;
+  padding: 8px;
+  text-align: right;
+  color: #666;
+  font-size: 12px;
+  background: #fafafa;
+  border-right: 1px solid #f0f0f0;
+}
+
+.hour-events {
+  flex: 1;
+  padding: 4px;
+  position: relative;
+}
+
+.day-event {
+  padding: 8px;
+  margin: 4px 0;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+}
+
+.day-event:hover {
+  opacity: 0.8;
+}
+
+.event-venue {
+  font-size: 11px;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .week-grid {
+    min-height: 400px;
+  }
+
+  .week-day-header {
+    padding: 8px 4px;
+  }
+
+  .week-day-cell {
+    padding: 4px;
+  }
+
+  .hour-label {
+    width: 50px;
+    padding: 4px;
+  }
+} 

@@ -6,7 +6,8 @@ import {
   Form,
   Input,
   Space,
-  message
+  message,
+  Tooltip
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import axios from 'axios';
@@ -15,29 +16,51 @@ interface Equipment {
   equipment_id: number;
   equipment_name: string;
   created_at: string;
+  has_mappings?: boolean;
+}
+
+interface AMCMapping {
+  amccontract_id: number;
+  equipment_id: number;
+  status: 'ACTIVE' | 'INACTIVE';
 }
 
 const EquipmentComponent: React.FC = () => {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
+  const [mappings, setMappings] = useState<AMCMapping[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingEquipment, setEditingEquipment] = useState<Equipment | null>(null);
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
-  const fetchEquipments = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/amc/equipments');
-      if (Array.isArray(response.data)) {
-        setEquipments(response.data);
+      const [equipmentsRes, mappingsRes] = await Promise.all([
+        axios.get('http://localhost:5000/api/amc/equipments'),
+        axios.get('http://localhost:5000/api/amc/contracts')
+      ]);
+
+      if (Array.isArray(mappingsRes.data)) {
+        setMappings(mappingsRes.data);
+      }
+
+      if (Array.isArray(equipmentsRes.data)) {
+        const equipmentsWithMappings = equipmentsRes.data.map((equipment: Equipment) => ({
+          ...equipment,
+          has_mappings: mappingsRes.data.some((mapping: AMCMapping) => 
+            mapping.equipment_id === equipment.equipment_id
+          )
+        }));
+        setEquipments(equipmentsWithMappings);
       }
     } catch (error) {
-      console.error('Failed to fetch equipment:', error);
+      console.error('Failed to fetch data:', error);
       message.error('Failed to fetch equipment list');
     }
   };
 
   useEffect(() => {
-    fetchEquipments();
+    fetchData();
   }, []);
 
   const handleAdd = () => {
@@ -53,10 +76,16 @@ const EquipmentComponent: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
+    const equipment = equipments.find(e => e.equipment_id === id);
+    if (equipment?.has_mappings) {
+      message.error('Cannot delete equipment with active or inactive mappings');
+      return;
+    }
+
     try {
       await axios.delete(`http://localhost:5000/api/amc/equipments/${id}`);
       message.success('Equipment deleted successfully');
-      fetchEquipments();
+      fetchData();
     } catch (error) {
       console.error('Failed to delete equipment:', error);
       message.error('Failed to delete equipment');
@@ -78,7 +107,7 @@ const EquipmentComponent: React.FC = () => {
       }
       setIsModalVisible(false);
       form.resetFields();
-      fetchEquipments();
+      fetchData();
     } catch (error) {
       console.error('Failed to save equipment:', error);
       message.error('Failed to save equipment');
@@ -102,19 +131,30 @@ const EquipmentComponent: React.FC = () => {
           <Button type="link" onClick={() => handleEdit(record)}>
             Edit
           </Button>
-          <Button 
-            type="link" 
-            danger 
-            onClick={() => {
-              Modal.confirm({
-                title: 'Are you sure you want to delete this equipment?',
-                content: 'This action cannot be undone.',
-                onOk: () => handleDelete(record.equipment_id),
-              });
-            }}
+          <Tooltip 
+            title={record.has_mappings ? 
+              "Cannot delete equipment with active or inactive mappings" : 
+              "Delete equipment"
+            }
           >
-            Delete
-          </Button>
+            <Button 
+              type="link" 
+              danger 
+              disabled={record.has_mappings}
+              onClick={() => {
+                if (record.has_mappings) {
+                  return;
+                }
+                Modal.confirm({
+                  title: 'Are you sure you want to delete this equipment?',
+                  content: 'This action cannot be undone.',
+                  onOk: () => handleDelete(record.equipment_id),
+                });
+              }}
+            >
+              Delete
+            </Button>
+          </Tooltip>
         </Space>
       ),
     },

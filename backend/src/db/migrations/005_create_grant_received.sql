@@ -1,7 +1,7 @@
 -- Create grant_received table to track field-wise grant allocations
 CREATE TABLE IF NOT EXISTS grant_received (
     grant_id SERIAL PRIMARY KEY,
-    project_id INTEGER REFERENCES finance_projects(project_id),
+    project_id INTEGER REFERENCES finance_projects(project_id) ON DELETE CASCADE,
     field_id INTEGER REFERENCES budget_fields(field_id),
     received_date DATE NOT NULL,
     amount DECIMAL(20, 2) NOT NULL,

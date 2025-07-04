@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import pool from '../../db';
 import { authenticateToken as checkAuth } from '../../middleware/auth';
+import { AuthenticatedRequest } from '../../types';
 
 const router = Router();
 
@@ -15,9 +16,17 @@ interface ProjectInvestigator {
   updated_at: Date;
 }
 
-// Get all PI/CoPI details with project and employee names
-router.get('/', checkAuth, async (req, res) => {
+// Get all PI/CoPI details with project and employee names (filtered by user's group)
+router.get('/', checkAuth, async (req: AuthenticatedRequest, res) => {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { username } = req.user;
+    console.log('User requesting PI/CoPI details:', username);
+
     const query = `
       SELECT 
         pi.id,
@@ -31,10 +40,12 @@ router.get('/', checkAuth, async (req, res) => {
       FROM project_investigators pi
       JOIN finance_projects p ON pi.project_id = p.project_id
       JOIN hr_employees e ON pi.employee_id = e.employee_id
+      JOIN technical_groups tg ON p.group_id = tg.group_id
+      WHERE LOWER(tg.group_name) = LOWER($1)
       ORDER BY p.project_name, pi.role_type DESC
     `;
     
-    const result = await pool.query(query);
+    const result = await pool.query(query, [username]);
     
     // Restructure data to group PI and Co-PIs by project
     const projectMap = new Map();
@@ -71,11 +82,33 @@ router.get('/', checkAuth, async (req, res) => {
   }
 });
 
-// Add new PI/CoPI details
-router.post('/', checkAuth, async (req, res) => {
+// Add new PI/CoPI details (with project group validation only)
+router.post('/', checkAuth, async (req: AuthenticatedRequest, res) => {
   const client = await pool.connect();
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { username } = req.user;
     const { project_id, pi_id, copi_ids } = req.body;
+
+    // Verify that the project belongs to the user's group
+    const projectCheck = await client.query(
+      `SELECT p.project_id 
+       FROM finance_projects p
+       JOIN technical_groups tg ON p.group_id = tg.group_id
+       WHERE p.project_id = $1 AND LOWER(tg.group_name) = LOWER($2)`,
+      [project_id, username]
+    );
+
+    if (projectCheck.rows.length === 0) {
+      res.status(403).json({ error: 'Access denied: Project does not belong to your group' });
+      return;
+    }
+
+    // No need to verify PI and Co-PIs belong to user's group - allow all employees
 
     await client.query('BEGIN');
 
@@ -118,12 +151,34 @@ router.post('/', checkAuth, async (req, res) => {
   }
 });
 
-// Update PI/CoPI details
-router.put('/:id', checkAuth, async (req, res) => {
+// Update PI/CoPI details (with project group validation only)
+router.put('/:id', checkAuth, async (req: AuthenticatedRequest, res) => {
   const client = await pool.connect();
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { username } = req.user;
     const { id } = req.params;
     const { project_id, pi_id, copi_ids } = req.body;
+
+    // Verify that the project belongs to the user's group
+    const projectCheck = await client.query(
+      `SELECT p.project_id 
+       FROM finance_projects p
+       JOIN technical_groups tg ON p.group_id = tg.group_id
+       WHERE p.project_id = $1 AND LOWER(tg.group_name) = LOWER($2)`,
+      [project_id, username]
+    );
+
+    if (projectCheck.rows.length === 0) {
+      res.status(403).json({ error: 'Access denied: Project does not belong to your group' });
+      return;
+    }
+
+    // No need to verify PI and Co-PIs belong to user's group - allow all employees
 
     await client.query('BEGIN');
 
@@ -162,22 +217,33 @@ router.put('/:id', checkAuth, async (req, res) => {
   }
 });
 
-// Delete PI/CoPI details for a project
-router.delete('/:id', checkAuth, async (req, res) => {
+// Delete PI/CoPI details for a project (with group validation)
+router.delete('/:id', checkAuth, async (req: AuthenticatedRequest, res) => {
   const client = await pool.connect();
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { username } = req.user;
     const { id } = req.params;
 
     await client.query('BEGIN');
 
-    // Get project_id first
+    // Get project_id first and verify it belongs to user's group
     const projectResult = await client.query(
-      'SELECT project_id FROM project_investigators WHERE id = $1',
-      [id]
+      `SELECT pi.project_id 
+       FROM project_investigators pi
+       JOIN finance_projects p ON pi.project_id = p.project_id
+       JOIN technical_groups tg ON p.group_id = tg.group_id
+       WHERE pi.id = $1 AND LOWER(tg.group_name) = LOWER($2)`,
+      [id, username]
     );
 
     if (projectResult.rows.length === 0) {
-      throw new Error('PI/CoPI details not found');
+      res.status(403).json({ error: 'Access denied: PI/CoPI details not found or do not belong to your group' });
+      return;
     }
 
     const { project_id } = projectResult.rows[0];

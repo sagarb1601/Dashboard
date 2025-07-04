@@ -5,6 +5,7 @@ import type { Vehicle, VehicleCreate, VehicleServicing, VehicleServicingCreate, 
 
 
 const BASE_URL = 'http://localhost:5000/api';
+export { BASE_URL };
 
 const api = axios.create({
   baseURL: BASE_URL,

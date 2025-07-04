@@ -23,7 +23,6 @@ import {
   FormControl,
   InputLabel,
   Select,
-  Grid,
   Snackbar
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
@@ -75,25 +74,30 @@ const paymentDurations = [
 type InvoiceStatus = 'Pending' | 'Approved' | 'Rejected' | 'Paid';
 
 interface FormData {
-  entity_type: 'product' | 'project' | 'service' | '';
   entity_id: string;
   invoice_no: string;
   invoice_date: string;
   invoice_value: string;
   payment_duration: string;
-  invoice_status: InvoiceStatus;
+  invoice_status: string;
   requested_by: string;
   payment_mode: string;
   remarks: string;
 }
 
+interface FormErrors {
+  entity_id?: string;
+  invoice_no?: string;
+  invoice_value?: string;
+  payment_duration?: string;
+}
+
 const initialFormData: FormData = {
-  entity_type: '',
   entity_id: '',
   invoice_no: '',
   invoice_date: new Date().toISOString().split('T')[0],
   invoice_value: '',
-  payment_duration: '',
+  payment_duration: 'Monthly',
   invoice_status: 'Pending',
   requested_by: '',
   payment_mode: '',
@@ -108,7 +112,9 @@ const PurchaseOrders: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [selectedEntityType, setSelectedEntityType] = useState<'product' | 'project' | 'service' | ''>('');
   const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -121,6 +127,30 @@ const PurchaseOrders: React.FC = () => {
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
+  };
+
+  const validateForm = (): FormErrors => {
+    const errors: FormErrors = {};
+    
+    if (!formData.entity_id) {
+      errors.entity_id = 'Business Entity is required';
+    }
+    
+    if (!formData.invoice_no) {
+      errors.invoice_no = 'Invoice Number is required';
+    }
+    
+    if (!formData.invoice_value) {
+      errors.invoice_value = 'Invoice Value is required';
+    } else if (isNaN(parseFloat(formData.invoice_value)) || parseFloat(formData.invoice_value) <= 0) {
+      errors.invoice_value = 'Invoice Value must be a positive number';
+    }
+    
+    if (!formData.payment_duration) {
+      errors.payment_duration = 'Payment Duration is required';
+    }
+    
+    return errors;
   };
 
   const handleCloseSnackbar = () => {
@@ -166,12 +196,21 @@ const PurchaseOrders: React.FC = () => {
   }, [fetchPurchaseOrders, fetchEntities, fetchEmployees]);
 
   const handleSubmit = async () => {
+    // Validate form
+    const errors = validateForm();
+    setFormErrors(errors);
+    
+    // If there are errors, don't submit
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
     try {
       const submitData = {
         ...formData,
         entity_id: parseInt(formData.entity_id),
         invoice_value: parseFloat(formData.invoice_value),
-        requested_by: parseInt(formData.requested_by)
+        requested_by: formData.requested_by ? parseInt(formData.requested_by) : null
       };
 
       if (selectedPO) {
@@ -207,20 +246,21 @@ const PurchaseOrders: React.FC = () => {
   const handleOpenDialog = (po?: PurchaseOrder) => {
     if (po) {
       setSelectedPO(po);
+      setSelectedEntityType(po.entity_type);
       setFormData({
-        entity_type: po.entity_type,
         entity_id: po.entity_id.toString(),
         invoice_no: po.invoice_no,
         invoice_date: po.invoice_date,
         invoice_value: po.invoice_value.toString(),
-        payment_duration: po.payment_duration,
+        payment_duration: po.payment_duration || '',
         invoice_status: po.invoice_status,
-        requested_by: po.requested_by.toString(),
-        payment_mode: po.payment_mode,
-        remarks: po.remarks
+        requested_by: po.requested_by ? po.requested_by.toString() : '',
+        payment_mode: po.payment_mode || '',
+        remarks: po.remarks || ''
       });
     } else {
       setSelectedPO(null);
+      setSelectedEntityType('');
       setFormData(initialFormData);
     }
     setOpenDialog(true);
@@ -229,7 +269,9 @@ const PurchaseOrders: React.FC = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setSelectedPO(null);
+    setSelectedEntityType('');
     setFormData(initialFormData);
+    setFormErrors({});
   };
 
   if (loading) {
@@ -260,13 +302,13 @@ const PurchaseOrders: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Entity Name</TableCell>
-              <TableCell>Client</TableCell>
-              <TableCell>Invoice No</TableCell>
-              <TableCell>Invoice Date</TableCell>
-              <TableCell>Invoice Value</TableCell>
-              <TableCell>Payment Duration</TableCell>
+              <TableCell>Client Name</TableCell>
+              <TableCell>PO Number</TableCell>
+              <TableCell>PO Date</TableCell>
+              <TableCell>Amount</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Requested By</TableCell>
+              <TableCell>Payment Status</TableCell>
+              <TableCell>Remarks</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
@@ -278,9 +320,9 @@ const PurchaseOrders: React.FC = () => {
                 <TableCell>{po.invoice_no}</TableCell>
                 <TableCell>{new Date(po.invoice_date).toLocaleDateString()}</TableCell>
                 <TableCell>₹{po.invoice_value.toLocaleString()}</TableCell>
-                <TableCell>{po.payment_duration}</TableCell>
                 <TableCell>{po.invoice_status}</TableCell>
-                <TableCell>{po.requested_by_name}</TableCell>
+                <TableCell>{po.payment_duration}</TableCell>
+                <TableCell>{po.remarks}</TableCell>
                 <TableCell>
                   <IconButton onClick={() => handleOpenDialog(po)} size="small">
                     <EditIcon />
@@ -304,13 +346,22 @@ const PurchaseOrders: React.FC = () => {
             <FormControl fullWidth required>
               <InputLabel>Entity Type</InputLabel>
               <Select
-                value={formData.entity_type}
+                value={selectedPO?.entity_type || selectedEntityType}
                 label="Entity Type"
                 onChange={(e) => {
+                  const entityType = e.target.value as 'product' | 'project' | 'service';
+                  setSelectedEntityType(entityType);
                   setFormData({
                     ...formData,
-                    entity_type: e.target.value as 'product' | 'project' | 'service',
-                    entity_id: ''
+                    entity_id: '',
+                    invoice_no: '',
+                    invoice_date: new Date().toISOString().split('T')[0],
+                    invoice_value: '',
+                    payment_duration: 'Monthly',
+                    invoice_status: 'Pending',
+                    requested_by: '',
+                    payment_mode: '',
+                    remarks: ''
                   });
                 }}
               >
@@ -320,21 +371,30 @@ const PurchaseOrders: React.FC = () => {
               </Select>
             </FormControl>
 
-            <FormControl fullWidth required>
+            <FormControl fullWidth required error={!!formErrors.entity_id}>
               <InputLabel>Business Entity</InputLabel>
               <Select
                 value={formData.entity_id}
                 label="Business Entity"
                 onChange={(e) => setFormData({ ...formData, entity_id: e.target.value })}
+                disabled={!selectedEntityType && !selectedPO?.entity_type}
               >
                 {entities
-                  .filter(entity => !formData.entity_type || entity.entity_type === formData.entity_type)
+                  .filter(entity => {
+                    const currentEntityType = selectedPO?.entity_type || selectedEntityType;
+                    return currentEntityType && entity.entity_type === currentEntityType;
+                  })
                   .map((entity) => (
                     <MenuItem key={entity.id} value={entity.id.toString()}>
                       {entity.name}
                     </MenuItem>
                   ))}
               </Select>
+              {formErrors.entity_id && (
+                <Typography color="error" variant="caption" sx={{ mt: 0.5 }}>
+                  {formErrors.entity_id}
+                </Typography>
+              )}
             </FormControl>
 
             <TextField
@@ -343,6 +403,8 @@ const PurchaseOrders: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, invoice_no: e.target.value })}
               fullWidth
               required
+              error={!!formErrors.invoice_no}
+              helperText={formErrors.invoice_no}
             />
 
             <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -363,17 +425,20 @@ const PurchaseOrders: React.FC = () => {
               onChange={(e) => setFormData({ ...formData, invoice_value: e.target.value })}
               fullWidth
               required
+              error={!!formErrors.invoice_value}
+              helperText={formErrors.invoice_value}
               InputProps={{
                 startAdornment: <Typography>₹</Typography>
               }}
             />
 
-            <FormControl fullWidth>
+            <FormControl fullWidth required error={!!formErrors.payment_duration}>
               <InputLabel>Payment Duration</InputLabel>
               <Select
                 value={formData.payment_duration}
                 label="Payment Duration"
                 onChange={(e) => setFormData({ ...formData, payment_duration: e.target.value })}
+                required
               >
                 {paymentDurations.map((duration) => (
                   <MenuItem key={duration} value={duration}>
@@ -381,17 +446,19 @@ const PurchaseOrders: React.FC = () => {
                   </MenuItem>
                 ))}
               </Select>
+              {formErrors.payment_duration && (
+                <Typography color="error" variant="caption" sx={{ mt: 0.5 }}>
+                  {formErrors.payment_duration}
+                </Typography>
+              )}
             </FormControl>
 
-            <FormControl fullWidth required>
-              <InputLabel>Status</InputLabel>
+            <FormControl fullWidth>
+              <InputLabel>Invoice Status</InputLabel>
               <Select
                 value={formData.invoice_status}
-                label="Status"
-                onChange={(e) => setFormData({
-                  ...formData,
-                  invoice_status: e.target.value as 'Pending' | 'Approved' | 'Rejected' | 'Paid'
-                })}
+                label="Invoice Status"
+                onChange={(e) => setFormData({ ...formData, invoice_status: e.target.value as InvoiceStatus })}
               >
                 <MenuItem value="Pending">Pending</MenuItem>
                 <MenuItem value="Approved">Approved</MenuItem>
@@ -400,7 +467,7 @@ const PurchaseOrders: React.FC = () => {
               </Select>
             </FormControl>
 
-            <FormControl fullWidth required>
+            <FormControl fullWidth>
               <InputLabel>Requested By</InputLabel>
               <Select
                 value={formData.requested_by}
