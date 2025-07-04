@@ -56,11 +56,12 @@ const ContractorForm: React.FC = () => {
           name="phone"
           rules={[
             { required: true, message: 'Please enter phone number' },
-            { pattern: /^[0-9-+()]{10,}$/, message: 'Please enter a valid phone number' }
+            { pattern: /^\d{10}$/, message: 'Phone number must be exactly 10 digits' }
           ]}
         >
-          <Input placeholder="Enter phone number" />
+          <Input placeholder="Enter 10-digit phone number" maxLength={10} />
         </Form.Item>
+
 
         <Form.Item
           label="Email"
@@ -76,8 +77,8 @@ const ContractorForm: React.FC = () => {
           label="Address"
           name="address"
         >
-          <Input.TextArea 
-            rows={3} 
+          <Input.TextArea
+            rows={3}
             placeholder="Enter complete address"
           />
         </Form.Item>

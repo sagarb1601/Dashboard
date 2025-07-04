@@ -132,13 +132,13 @@ const ContractRenewal: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to save contract:', error);
       let errorMessage = 'Failed to save contract';
-      
+
       if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       }
-      
+
       Modal.error({
         title: 'Error',
         content: errorMessage,
@@ -228,15 +228,15 @@ const ContractRenewal: React.FC = () => {
 
   // Add function to check for overlapping dates
   const checkForOverlappingDates = (startDate: Dayjs, endDate: Dayjs, employeeId: number, currentContractId?: number) => {
-    const existingContracts = contracts.filter(c => 
-      c.employee_id === employeeId && 
+    const existingContracts = contracts.filter(c =>
+      c.employee_id === employeeId &&
       (!currentContractId || c.id !== currentContractId)
     );
 
     return existingContracts.some(contract => {
       const contractStart = dayjs(contract.start_date);
       const contractEnd = dayjs(contract.end_date);
-      
+
       return (
         (startDate.isSameOrBefore(contractEnd) && endDate.isSameOrAfter(contractStart)) ||
         (contractStart.isSameOrBefore(endDate) && contractEnd.isSameOrAfter(startDate))
@@ -265,7 +265,7 @@ const ContractRenewal: React.FC = () => {
       const startDate = form.getFieldValue('start_date');
       const endDate = form.getFieldValue('end_date');
       const contractType = form.getFieldValue('contract_type');
-      
+
       if (startDate && endDate) {
         // Check if end date is before start date
         if (endDate.isBefore(startDate)) {
@@ -287,8 +287,8 @@ const ContractRenewal: React.FC = () => {
         }
 
         // Check for overlapping dates
-        if (form.getFieldValue('employee_id') && 
-            checkForOverlappingDates(startDate, endDate, form.getFieldValue('employee_id'), editingContract?.id)) {
+        if (form.getFieldValue('employee_id') &&
+          checkForOverlappingDates(startDate, endDate, form.getFieldValue('employee_id'), editingContract?.id)) {
           throw new Error('Contract dates overlap with an existing contract for this employee');
         }
       }
@@ -299,7 +299,7 @@ const ContractRenewal: React.FC = () => {
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
         <h2>Contract Renewals</h2>
-        
+
         {/* Employee Search/Select Box */}
         <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', maxWidth: '600px' }}>
           <Select
@@ -319,7 +319,7 @@ const ContractRenewal: React.FC = () => {
             allowClear
             onClear={() => setSelectedEmployee(null)}
           />
-          <Button 
+          <Button
             type="primary"
             onClick={() => {
               setEditingContract(null);
@@ -444,16 +444,16 @@ const ContractRenewal: React.FC = () => {
               validateDates
             ]}
           >
-            <DatePicker 
+            <DatePicker
               style={{ width: '100%' }}
               onChange={updateDuration}
               disabledDate={(current) => {
-                // Disable dates before today for new contracts
-                if (!editingContract && current && current < dayjs().startOf('day')) {
+                if (!editingContract && current && current.valueOf() < dayjs().startOf('day').valueOf()) {
                   return true;
                 }
                 return false;
               }}
+
             />
           </Form.Item>
 
@@ -465,7 +465,7 @@ const ContractRenewal: React.FC = () => {
               validateDates
             ]}
           >
-            <DatePicker 
+            <DatePicker
               style={{ width: '100%' }}
               onChange={updateDuration}
               disabledDate={(current) => {
@@ -498,11 +498,11 @@ const ContractRenewal: React.FC = () => {
               }
             ]}
           >
-            <InputNumber 
-              min={1} 
-              max={36} 
-              style={{ width: '100%' }} 
-              disabled 
+            <InputNumber
+              min={1}
+              max={36}
+              style={{ width: '100%' }}
+              disabled
               readOnly
             />
           </Form.Item>

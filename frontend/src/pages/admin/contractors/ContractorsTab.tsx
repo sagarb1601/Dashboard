@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { Form, Input, Button, message, Card, Table, Space, Modal } from "antd";
-import { EditOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
-import { IconWrapper } from "../../../utils/IconWrapper";
-import { contractors } from "../../../utils/api";
-import { Contractor, contractorSchema } from "../../../types/contractor";
-import type { TableProps } from "antd/es/table";
-import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
+import React, { useState, useEffect, useCallback } from 'react';
+import { Form, Input, Button, message, Card, Table, Space, Modal } from 'antd';
+import { EditOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { IconWrapper } from '../../../utils/IconWrapper';
+import { contractors, mappings } from '../../../utils/api';
+import { Contractor, contractorSchema, ContractorMapping } from '../../../types/contractor';
+import type { TableProps } from 'antd/es/table';
 
 const WrappedEditIcon = IconWrapper(EditOutlined);
 const WrappedPlusIcon = IconWrapper(PlusOutlined);
@@ -18,26 +16,16 @@ const ContractorsTab: React.FC = () => {
   const [contractorsList, setContractorsList] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingContractor, setEditingContractor] = useState<Contractor | null>(
-    null
-  );
+  const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
+  const [contractorMappings, setContractorMappings] = useState<{ [key: number]: boolean }>({});
 
-  const [alert, setAlert] = useState<{
-    open: boolean;
-    severity: "error" | "success" | "warning" | "info";
-    message: string;
-  }>({
-    open: false,
-    severity: "info",
-    message: "",
-  });
-
-  const showAlert = (
-    message: string,
-    severity: "error" | "success" | "warning" | "info" = "info"
-  ) => {
-    setAlert({ open: true, severity, message });
-  };
+  const checkContractorMappings = useCallback((mappings: ContractorMapping[]) => {
+    const mappingMap: { [key: number]: boolean } = {};
+    mappings.forEach(mapping => {
+      mappingMap[mapping.contractor_id] = true;
+    });
+    setContractorMappings(mappingMap);
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,8 +37,8 @@ const ContractorsTab: React.FC = () => {
       setContractorsList(contractorsRes.data);
       checkContractorMappings(mappingsRes.data);
     } catch (error) {
-      showAlert("Failed to load contractors", "error");
-      console.error(error);
+      console.error('Error fetching data:', error);
+      message.error('Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -84,29 +72,44 @@ const ContractorsTab: React.FC = () => {
 
       setSubmitting(true);
       if (editingContractor) {
-        console.log("Editing contractor:", editingContractor);
         await contractors.update(editingContractor.contractor_id, values);
-        showAlert("Contractor updated successfully", "success");
+        message.success('Contractor updated successfully');
       } else {
         await contractors.create(values);
-        showAlert("Contractor added successfully", "success");
+        message.success('Contractor added successfully');
       }
       setIsModalVisible(false);
       form.resetFields();
       setEditingContractor(null);
       fetchData(); // Refresh the table
     } catch (error: any) {
-      if (error.name === "ValidationError") {
-        console.error(error.errors[0]);
-        showAlert(error.errors[0], "error");
+      if (error.name === 'ValidationError') {
+        // Show all validation errors
+        const errorMessages = error.errors.map((err: string) => (
+          <div key={err}>{err}</div>
+        ));
+        Modal.error({
+          title: 'Validation Error',
+          content: <div>{errorMessages}</div>,
+          width: 400,
+        });
+      } else if (error.response?.data?.errors) {
+        // Handle backend validation errors
+        const errorMessages = error.response.data.errors.map((err: any) => (
+          <div key={err.msg}>{err.msg}</div>
+        ));
+        Modal.error({
+          title: 'Validation Error',
+          content: <div>{errorMessages}</div>,
+          width: 400,
+        });
       } else {
-        showAlert(
-          editingContractor
-            ? "Failed to update contractor"
-            : "Failed to add contractor",
-          "error"
-        );
-        console.error("Error:", error);
+        Modal.error({
+          title: 'Error',
+          content: error.response?.data?.message || (editingContractor ? 'Failed to update contractor' : 'Failed to add contractor'),
+          width: 400,
+        });
+        console.error('Error:', error);
       }
     } finally {
       setSubmitting(false);
@@ -114,72 +117,74 @@ const ContractorsTab: React.FC = () => {
   };
 
   const handleDelete = async (contractorId: number) => {
-    try {
-      console.log("Deleting contractor:", contractorId);
-      await contractors.delete(contractorId);
-      showAlert("Contractor deleted successfully", "success");
-      console.log("Contractor deleted, fetching updated list...");
-      await fetchContractors();
-      console.log("Updated contractors list:", contractorsList);
-    } catch (error: any) {
-      console.error("Error deleting contractor:", error);
-      showAlert("Failed to delete contractor", "error");
-
-      const rawError = error.response?.data?.error;
-      const errorMessage =
-        (typeof rawError === "string" ? rawError : "") ||
-        error.message ||
-        "Failed to save mapping";
-
-      if (
-        typeof errorMessage === "string" &&
-        errorMessage.includes("Contractor is mapped with any department.")
-      ) {
-        showAlert("Contractor is mapped with any department.", "error");
-      } else {
-        showAlert(errorMessage, "error");
-      }
-      console.error("Error saving mapping:", error);
+    if (contractorMappings[contractorId]) {
+      Modal.warning({
+        title: 'Cannot Delete Contractor',
+        content: 'This contractor has existing mappings (active or inactive). Please delete all mappings before deleting the contractor.'
+      });
+      return;
     }
+
+    Modal.confirm({
+      title: 'Delete Contractor',
+      content: 'Are you sure you want to delete this contractor? This action cannot be undone.',
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'No, Cancel',
+      onOk: async () => {
+        try {
+          await contractors.delete(contractorId);
+          message.success('Contractor deleted successfully');
+          fetchData();
+        } catch (error: any) {
+          const errorMessage = error.response?.data?.message || 'Failed to delete contractor';
+          Modal.error({
+            title: 'Error',
+            content: errorMessage
+          });
+          console.error('Error deleting contractor:', error);
+        }
+      }
+    });
   };
 
-  const columns: TableProps<Contractor>["columns"] = [
+  const columns: TableProps<Contractor>['columns'] = [
     {
-      title: "Company Name",
-      dataIndex: "contractor_company_name",
-      key: "contractor_company_name",
-      sorter: (a, b) =>
-        a.contractor_company_name.localeCompare(b.contractor_company_name),
-    },
-    {
-      title: "Contact Person",
-      dataIndex: "contact_person",
-      key: "contact_person",
-      sorter: (a, b) => a.contact_person.localeCompare(b.contact_person),
-    },
-    {
-      title: "Phone",
-      dataIndex: "phone",
-      key: "phone",
-    },
-    {
-      title: "Email",
-      dataIndex: "email",
-      key: "email",
-    },
-    {
-      title: "Address",
-      dataIndex: "address",
-      key: "address",
+      title: 'Company Name',
+      dataIndex: 'contractor_company_name',
+      key: 'contractor_company_name',
+      width: '25%',
       ellipsis: true,
     },
     {
-      title: "Actions",
-      key: "actions",
+      title: 'Contact Person',
+      dataIndex: 'contact_person',
+      key: 'contact_person',
+      width: '20%',
+      ellipsis: true,
+    },
+    {
+      title: 'Phone',
+      dataIndex: 'phone',
+      key: 'phone',
+      width: '15%',
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      width: '20%',
+      ellipsis: true,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '20%',
+      fixed: 'right',
       render: (_, record) => (
         <Space size="small" style={{ whiteSpace: 'nowrap' }}>
-          <Button 
-            type="link" 
+          <Button
+            type="link"
             onClick={() => showModal(record)}
             icon={<WrappedEditIcon />}
             style={{ padding: '4px 8px' }}
@@ -190,6 +195,9 @@ const ContractorsTab: React.FC = () => {
             type="link"
             danger
             onClick={() => handleDelete(record.contractor_id)}
+            disabled={contractorMappings[record.contractor_id]}
+            icon={<WrappedDeleteIcon />}
+            style={{ padding: '4px 8px' }}
           >
             Delete
           </Button>
@@ -199,16 +207,13 @@ const ContractorsTab: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-semibold">Contractors Management</h1>
+    <Card>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2>Contractors Management</h2>
         <Button
           type="primary"
+          onClick={() => showModal(undefined)}
           icon={<WrappedPlusIcon />}
-          onClick={() => showModal()}
-          style={{
-            margin: "0 0 0 5px",
-          }}
         >
           Add Contractor
         </Button>
@@ -243,9 +248,14 @@ const ContractorsTab: React.FC = () => {
           <Form.Item
             name="contractor_company_name"
             label="Company Name"
-            rules={[{ required: true, message: "Please enter company name" }]}
+            rules={[
+              { required: true, message: 'Please enter company name' },
+              { min: 2, message: 'Company name must be at least 2 characters' },
+              { max: 100, message: 'Company name must not exceed 100 characters' }
+            ]}
+            validateTrigger={['onChange', 'onBlur']}
           >
-            <Input 
+            <Input
               placeholder="Enter company name"
               maxLength={100}
             />
@@ -254,15 +264,20 @@ const ContractorsTab: React.FC = () => {
           <Form.Item
             name="contact_person"
             label="Contact Person"
-            rules={[{ required: true, message: "Please enter contact person" }]}
+            rules={[
+              { required: true, message: 'Please enter contact person' },
+              { min: 2, message: 'Contact person name must be at least 2 characters' },
+              { max: 100, message: 'Contact person name must not exceed 100 characters' }
+            ]}
+            validateTrigger={['onChange', 'onBlur']}
           >
-            <Input 
+            <Input
               placeholder="Enter contact person name"
               maxLength={100}
             />
           </Form.Item>
 
-          <Form.Item
+           {/* <Form.Item
             name="phone"
             label="Phone"
             rules={[
@@ -279,51 +294,62 @@ const ContractorsTab: React.FC = () => {
               placeholder="Enter phone number" 
               maxLength={15}
             />
-          </Form.Item>
+          </Form.Item> */}
 
+            <Form.Item
+                      label="Phone"
+                      name="phone"
+                      rules={[
+                        { required: true, message: 'Please enter phone number' },
+                        { pattern: /^\d{10}$/, message: 'Phone number must be exactly 10 digits' }
+                      ]}
+                    >
+                      <Input placeholder="Enter 10-digit phone number" maxLength={10} />
+                    </Form.Item>
           <Form.Item
             name="email"
             label="Email"
-            rules={[{ type: "email", message: "Please enter a valid email" }]}
+            rules={[
+              { type: 'email', message: 'Please enter a valid email address' },
+              {
+                pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                message: 'Please enter a valid email address'
+              }
+            ]}
+            validateTrigger={['onChange', 'onBlur']}
           >
-            <Input 
-              type="email" 
+            <Input
+              type="email"
               placeholder="Enter email address"
               maxLength={100}
             />
           </Form.Item>
 
-          <Form.Item name="address" label="Address">
+          <Form.Item
+            name="address"
+            label="Address"
+          >
             <Input.TextArea rows={3} placeholder="Enter address" />
           </Form.Item>
 
           <Form.Item className="mb-0 flex justify-end">
             <Space>
-              <Button onClick={handleCancel}>Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={submitting}>
-                {editingContractor ? "Update Contractor" : "Add Contractor"}
+              <Button onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={submitting}
+              >
+                {editingContractor ? 'Update Contractor' : 'Add Contractor'}
               </Button>
             </Space>
           </Form.Item>
         </Form>
       </Modal>
-
-      <Snackbar
-        open={alert.open}
-        autoHideDuration={4000}
-        onClose={() => setAlert({ ...alert, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert
-          onClose={() => setAlert({ ...alert, open: false })}
-          severity={alert.severity}
-          sx={{ width: "100%" }}
-        >
-          {alert.message}
-        </Alert>
-      </Snackbar>
-    </div>
+    </Card>
   );
 };
 
-export default ContractorsTab;
+export default ContractorsTab; 
